@@ -1,0 +1,4 @@
+{
+	"name": "librelane-base-image",
+    "image": "ghcr.io/hm-aemy/librelane-base-image:latest"
+}
