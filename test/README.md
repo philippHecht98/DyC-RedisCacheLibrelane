@@ -1,89 +1,48 @@
-# CoCoTB Tests for Redis Cache Hardware
+# Pytest + Cocotb Basics
 
-This directory contains CoCoTB-based tests for the Redis cache hardware design.
-
-## Structure
-
-```
-test/
-├── README.md                    # This file
-├── conftest.py                  # Pytest configuration (to be implemented)
-├── test_memory_cell.py          # Memory cell tests (to be implemented)
-├── test_memory_block.py         # Memory block tests (to be implemented)
-├── test_memory_interface.py     # Memory interface tests (to be implemented)
-├── test_fsm_controller.py       # FSM controller tests (to be implemented)
-└── test_top.py                  # Top-level integration tests (to be implemented)
-```
-
-## Running Tests
-
-### Prerequisites
-
-1. Install Python dependencies:
-   ```bash
-   make install
-   ```
-
-2. Install a Verilog simulator (e.g., Icarus Verilog):
-   ```bash
-   sudo apt-get install iverilog
-   ```
-
-### Run All Tests
-
-```bash
-make test
-```
-
-### Run Specific Tests
-
-```bash
-make test-cell    # Test memory cell
-make test-block   # Test memory block
-make test-fsm     # Test FSM controller
-make test-top     # Test top-level module
-```
-
-## CoCoTB Test Structure
-
-Each test file should follow this structure:
+Minimal test file example:
 
 ```python
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import RisingEdge
+from cocotb_tools.runner import get_runner
+
+
+class BasicTester:
+    def __init__(self, dut):
+        self.dut = dut
+        self.clk = dut.clk
+
 
 @cocotb.test()
-async def test_basic_functionality(dut):
-    """Test basic functionality"""
-    
-    # Create clock
-    clock = Clock(dut.clk, 10, units="ns")
-    cocotb.start_soon(clock.start())
-    
-    # Reset
-    dut.rst_n.value = 0
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
-    dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
-    
-    # Test logic here
-    # ...
+async def test_smoke(dut):
+	tester = BasicTester(dut)
+	clock = Clock(tester.clk, 10, unit="ns")
+	cocotb.start_soon(clock.start())
+	await RisingEdge(tester.clk)
+
+
+def test_pipeline_runner():
+	runner = get_runner("icarus")
+	runner.build(sources=["src/redis_cache_top.v"], hdl_toplevel="redis_cache_top")
+	runner.test(hdl_toplevel="redis_cache_top", test_module="basic_test")
+
+
+if __name__ == "__main__":
+	test_pipeline_runner()
 ```
 
-## Test Coverage
+What to look out for:
 
-Tests should cover:
-- [x] Basic functionality
-- [x] Edge cases
-- [x] Error conditions
-- [x] Timing constraints
-- [x] Protocol compliance
+- File name matches `test_*.py` or `*_test.py`.
+- Pytest entrypoint function name starts with `test_`.
+- Cocotb tests use `@cocotb.test()` inside the same module or a discoverable module.
+- `test_module` matches the Python module name (file name without `.py`).
+- Keep the `__main__` block if you want to run the file directly.
 
-## Future Enhancements
+Run all tests from the repository root:
 
-- Add waveform generation for debugging
-- Add code coverage analysis
-- Add randomized testing
-- Add protocol checkers
+```
+pytest
+```
