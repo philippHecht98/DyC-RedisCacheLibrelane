@@ -1,0 +1,6 @@
+-e ./.github/workflows/local/event.json
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+--container-architecture linux/arm64
+--container-daemon-socket -
+-s GITHUB_TOKEN
+--env DOCKER_HOST=unix:///var/run/docker.sock
