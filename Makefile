@@ -15,9 +15,9 @@ frontend:
 
 .PHONY: librelane
 librelane:
-	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --run-tag $(TAG) --overwrite config.yaml
+	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --run-tag $(TAG) --overwrite $(CONFIG_FILE)
 	cp -r runs/$(TAG)/final final
 
 .PHONY: view-results
 view-results:
-	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --last-run --flow OpenInOpenROAD config.yaml
+	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --last-run --flow OpenInOpenROAD $(CONFIG_FILE)
