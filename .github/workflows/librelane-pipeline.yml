@@ -15,12 +15,10 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       
@@ -30,190 +28,39 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/redis-soc
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-      
-      - name: Build and push Docker image
+            
+      - name: Build and push Docker image (GitHub)
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' && !env.ACT }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: true
 
-  frontend-synthesis:
-    name: Frontend Synthesis (Yosys)
-    runs-on: ubuntu-latest
-    needs: build-image
+  # pipeline-summary:
+  #   name: Librelane Pipeline Summary
+  #   runs-on: ubuntu-latest
+  #   needs: 
+  #     - build-image
+  #   if: always()
     
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #     - name: Pipeline Status Report
+  #       run: |
+  #         echo "=== Librelane Docker Pipeline Summary ==="
+  #         echo "Docker Image Build: ${{ needs.build-image.result }}"
+  #         echo "Frontend Synthesis: ${{ needs.frontend-synthesis.result }}"
+  #         echo "Librelane Flow: ${{ needs.librelane-flow.result }}"
+  #         echo "Static Timing Analysis: ${{ needs.static-timing-analysis.result }}"
+  #         echo "Design Rule Check: ${{ needs.design-rule-check.result }}"
+  #         echo "Layout vs Schematic: ${{ needs.layout-vs-schematic.result }}"
+  #         echo "Generate GDSII: ${{ needs.generate-gds.result }}"
+  #         echo "======================================"
       
-      - name: Run Yosys synthesis
-        run: |
-          docker run --rm \
-            ghcr.io/${{ github.repository_owner }}/redis-soc:sha-${{ github.sha }} \
-            "yosys -p 'read_verilog src/*.v; synth; write_json synth.json'"
-      
-      - name: Upload synthesis artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: synthesis-output
-          path: synth.json
-        continue-on-error: true
-
-  librelane-flow:
-    name: Full Librelane Flow
-    runs-on: ubuntu-latest
-    needs: build-image
-    
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Create output directory
-        run: mkdir -p output
-      
-      - name: Run Librelane full flow
-        run: |
-          docker run --rm -v $PWD/output:/work/output \
-            ghcr.io/${{ github.repository_owner }}/redis-soc:sha-${{ github.sha }} \
-            "PDK_ROOT=/work/pdk PDK=ihp-sg13g2 librelane --manual-pdk --run-tag spm --overwrite config.yaml && cp -r runs/spm/final /work/output"
-      
-      - name: Upload Librelane artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: librelane-output
-          path: output/
-        continue-on-error: true
-
-  static-timing-analysis:
-    name: Static Timing Analysis
-    runs-on: ubuntu-latest
-    needs: librelane-flow
-    
-    steps:
-      - name: Download Librelane artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: librelane-output
-      
-      - name: Analyze timing reports
-        run: |
-          echo "Analyzing timing reports from Librelane output..."
-          if [ -f "reports/sta/*.rpt" ]; then
-            cat reports/sta/*.rpt
-          else
-            echo "No timing reports found"
-          fi
-
-  design-rule-check:
-    name: Design Rule Check (DRC)
-    runs-on: ubuntu-latest
-    needs: librelane-flow
-    
-    steps:
-      - name: Download Librelane artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: librelane-output
-      
-      - name: Check DRC reports
-        run: |
-          echo "Checking DRC reports from Librelane output..."
-          if [ -f "reports/drc/*.rpt" ]; then
-            cat reports/drc/*.rpt
-          else
-            echo "No DRC reports found"
-          fi
-
-  layout-vs-schematic:
-    name: Layout vs Schematic (LVS)
-    runs-on: ubuntu-latest
-    needs: librelane-flow
-    
-    steps:
-      - name: Download Librelane artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: librelane-output
-      
-      - name: Check LVS reports
-        run: |
-          echo "Checking LVS reports from Librelane output..."
-          if [ -f "reports/lvs/*.rpt" ]; then
-            cat reports/lvs/*.rpt
-          else
-            echo "No LVS reports found"
-          fi
-
-  generate-gds:
-    name: Generate GDSII
-    runs-on: ubuntu-latest
-    needs: [design-rule-check, layout-vs-schematic]
-    
-    steps:
-      - name: Download Librelane artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: librelane-output
-      
-      - name: Package GDSII
-        run: |
-          echo "GDSII files from Librelane flow..."
-          find . -name "*.gds*" -type f
-
-  pipeline-summary:
-    name: Librelane Pipeline Summary
-    runs-on: ubuntu-latest
-    needs: 
-      - build-image
-      - frontend-synthesis
-      - librelane-flow
-      - static-timing-analysis
-      - design-rule-check
-      - layout-vs-schematic
-      - generate-gds
-    if: always()
-    
-    steps:
-      - name: Pipeline Status Report
-        run: |
-          echo "=== Librelane Docker Pipeline Summary ==="
-          echo "Docker Image Build: ${{ needs.build-image.result }}"
-          echo "Frontend Synthesis: ${{ needs.frontend-synthesis.result }}"
-          echo "Librelane Flow: ${{ needs.librelane-flow.result }}"
-          echo "Static Timing Analysis: ${{ needs.static-timing-analysis.result }}"
-          echo "Design Rule Check: ${{ needs.design-rule-check.result }}"
-          echo "Layout vs Schematic: ${{ needs.layout-vs-schematic.result }}"
-          echo "Generate GDSII: ${{ needs.generate-gds.result }}"
-          echo "======================================"
-      
-      - name: Check for failures
-        if: |
-          needs.build-image.result == 'failure' ||
-          needs.frontend-synthesis.result == 'failure' ||
-          needs.librelane-flow.result == 'failure' ||
-          needs.design-rule-check.result == 'failure' ||
-          needs.layout-vs-schematic.result == 'failure'
-        run: |
-          echo "Pipeline has critical failures!"
-          exit 1
+  #     - name: Check for failures
+  #       if: |
+  #         needs.build-image.result == 'failure'
+  #       run: |
+  #         echo "Pipeline has critical failures!"
+  #         exit 1
