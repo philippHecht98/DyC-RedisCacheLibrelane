@@ -3,7 +3,7 @@ module dynamic_register_array #(
     parameter LENGTH
 )(
     input wire clk,
-    input wire rst,
+    input wire rst_n,
     input wire write_op,
     input wire select_op,
     input wire [LENGTH-1:0] data_in,
@@ -13,7 +13,7 @@ module dynamic_register_array #(
     reg [LENGTH-1:0] registers;
 
     always_ff @(posedge clk) begin
-        if (rst) begin
+        if (!rst_n) begin
             registers <=  '0;
         end else if (write_op) begin
             registers <= data_in;
