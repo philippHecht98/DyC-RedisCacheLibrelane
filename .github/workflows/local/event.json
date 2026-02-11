@@ -1,0 +1,21 @@
+{
+  "push": {
+    "ref": "refs/heads/main",
+    "repository": {
+      "name": "DyC-RedisCacheLibrelane",
+      "owner": {
+        "login": "test-user"
+      }
+    }
+  },
+  "pull_request": {
+    "number": 1,
+    "head": {
+      "ref": "test-branch",
+      "sha": "0000000000000000000000000000000000000001"
+    },
+    "base": {
+      "ref": "main"
+    }
+  }
+}
