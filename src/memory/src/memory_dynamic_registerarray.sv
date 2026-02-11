@@ -20,6 +20,6 @@ module dynamic_register_array #(
         end 
     end
 
-    assign data_out = select_op ? registers : 'z;
+    assign data_out = registers;
 
 endmodule
