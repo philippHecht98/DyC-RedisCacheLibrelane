@@ -1,23 +1,37 @@
-TOP = spm_chip
-TAG = spm
-PROJECT_DIR = $(shell pwd)
+# Top-level Makefile (GNU make)
+SRC_DIR := src
 
-LIBRELANE_DIR ?= $(PROJECT_DIR)/librelane
-PDK_ROOT ?= $(PROJECT_DIR)/pdk
+# Subdir name (under src/) that must run last. Override like:
+#   make TOP=chip_top
+TOP ?= chip
 
-PDK = ihp-sg13g2
+# Auto-detect all immediate subdirs that contain a Makefile: src/*/Makefile
+SUBDIRS := $(sort $(dir $(wildcard $(SRC_DIR)/*/Makefile)))
+SUBDIRS := $(patsubst %/,%,$(SUBDIRS)) # strip trailing /
 
-CONFIG_FILE = $(PROJECT_DIR)/config.json
+# Everything except the LAST one
+FIRST := $(filter-out $(SRC_DIR)/$(TOP),$(SUBDIRS))
 
+.PHONY: librelane components chip librelane-% view-% list
 
-frontend: 
-	yosys read_verilog $(PROJECT_DIR)/src/*.v
+.NOTPARALLEL: librelane
+librelane: components chip
 
-.PHONY: librelane
-librelane:
-	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --run-tag $(TAG) --overwrite $(CONFIG_FILE)
-	cp -r runs/$(TAG)/final final
+# Build all non-last blocks (parallelizable with -j)
+components: $(addprefix librelane-,$(notdir $(FIRST)))
 
-.PHONY: view-results
-view-results:
-	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --last-run --flow OpenInOpenROAD $(CONFIG_FILE)
+# Enforce ordering for "all" without making "make last" rebuild "first"
+chip: librelane-$(TOP)
+
+# Convenience: show what got detected
+list:
+	@echo "Detected:       $(notdir $(SUBDIRS))"
+	@echo "components:     $(notdir $(FIRST))"
+	@echo "top:            $(TOP)"
+
+# Delegate to child makefiles
+librelane-%:
+	$(MAKE) -C $(SRC_DIR)/$* librelane
+
+view-%:
+	$(MAKE) -C $(SRC_DIR)/$* view-results
