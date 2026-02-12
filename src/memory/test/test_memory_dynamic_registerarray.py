@@ -3,7 +3,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, FallingEdge
+from cocotb.triggers import FallingEdge, RisingEdge
 from cocotb_tools.runner import get_runner
 from cocotb.triggers import ReadOnly
 
@@ -21,17 +21,17 @@ class RegisterArrayTester:
         self.dut.write_op.value = 0
         self.dut.data_in.value = 0
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.dut.rst_n.value = 1  # Reset lösen
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
 
     async def write(self, data: int):
         """Schreibt Daten in das Register (ohne Output zu aktivieren)."""
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         self.dut.write_op.value = 1
         self.dut.data_in.value = data
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.dut.write_op.value = 0  # Write beenden
 
 
@@ -125,11 +125,11 @@ async def test_data_in_without_write(dut):
     # 2. Daten anlegen ohne write_op zu aktivieren
     test_value = 0x77
     dut._log.info(f"Applying data_in value: {hex(test_value)} without write_op...")
-    await FallingEdge(tester.clk)
+    await RisingEdge(tester.clk)
     dut.data_in.value = test_value
     dut.write_op.value = 0  # write_op nicht aktivieren
 
-    await RisingEdge(tester.clk)  # Auf die nächste steigende Flanke warten
+    await FallingEdge(tester.clk)  # Auf die nächste steigende Flanke warten
 
     await ReadOnly() 
     assert dut.data_out.value == 0, \

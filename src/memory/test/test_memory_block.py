@@ -47,59 +47,59 @@ class MemoryBlockTester:
         self.write_op.value = 0
         self.select_op.value = 0
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.rst_n.value = 1  # Reset lösen
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
 
 
     async def write(self, idx: int, key: int, value: int):
         """Schreibt Daten in das Register (ohne Output zu aktivieren)."""
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         self.write_op.value = 1  # Write-Operation aktivieren
 
         self.index.value = 1 << idx   # idx=0 → 0b01, idx=1 → 0b10
         self.key_in.value = key
         self.value_in.value = value
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.write_op.value = 0  # Write beenden
 
 
     async def read_by_key(self, key: int):
         """Liest Daten aus dem Register (ohne Output zu aktivieren)."""
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         self.select_op.value = 0  # read by key
         self.key_in.value = key
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.select_op.value = 0  # Read beenden
-        await RisingEdge(self.clk)  # Warten auf die Ausgabe
+        await FallingEdge(self.clk)  # Warten auf die Ausgabe
         return self.value_out.value
 
 
     async def read_by_index(self, idx: int):
         """Liest Daten aus dem Register (ohne Output zu aktivieren)."""
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         self.select_op.value = 1  # read by index
         self.index.value = idx
         
-        await RisingEdge(self.clk)
+        await FallingEdge(self.clk)
         self.select_op.value = 0  # Read beenden
-        await RisingEdge(self.clk)  # Warten auf die Ausgabe
+        await FallingEdge(self.clk)  # Warten auf die Ausgabe
         return self.key_out.value, self.value_out.value
 
 
     async def get_used_entries(self):
         """Liest die Anzahl der verwendeten Einträge aus."""
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         return bin(self.used_entries.value).count('1')
 
 
     async def get_cell_value_by_index(self, idx: int):
         """Read the value stored in a specific memory cell."""
-        await FallingEdge(self.clk)
-        self.index.value = idx
         await RisingEdge(self.clk)
+        self.index.value = idx
+        await FallingEdge(self.clk)
         return self.key_out.value, self.value_out.value
 
     
@@ -119,7 +119,7 @@ async def test_reset(dut):
     # 1. Reset
     await tester.reset()
 
-    await RisingEdge(tester.clk) 
+    await FallingEdge(tester.clk) 
 
     # check that no line is used
     assert await tester.get_used_entries() == 0, \
@@ -228,7 +228,7 @@ async def test_reading_cell_by_index(dut):
         value = (i + 1) * 2  # Wert im Bereich der Wertbreite
         await tester.write(i, key, value)
 
-        await FallingEdge(tester.clk)  # Warten auf die Stabilisierung der Werte in den Zellen
+        await RisingEdge(tester.clk)  # Warten auf die Stabilisierung der Werte in den Zellen
 
         # Lesen des Werts über den Index und Überprüfen der Korrektheit
         read_key, read_value = await tester.get_cell_value_by_index(i)
@@ -260,7 +260,7 @@ async def test_reading_cell_by_select_with_input_key_matching(dut):
     dut.index.value = 0  # Index auf die erste Zelle setzen
     dut.key_in.value = 2  # Schlüssel setzen, der mit dem ersten Eintrag übereinstimmt
     dut.select_op.value = 1  # Select-Operation aktivieren
-    await RisingEdge(tester.clk)  # Warten auf die Ausgabe
+    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
     
     assert tester.key_out.value == 1, f"Expected key_out 1 for select operation with matching index, but got {tester.key_out.value}."
     assert tester.value_out.value == 2, f"Expected value_out 2 for select operation with matching index, but got {tester.value_out.value}."
