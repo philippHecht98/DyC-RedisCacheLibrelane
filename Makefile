@@ -9,8 +9,15 @@ PDK = ihp-sg13g2
 
 CONFIG_FILE = $(PROJECT_DIR)/config.json
 
-gds-base: run/${TAG}final/gds/$(TOP).gds
-.PHONY: gds-base
 
-run/${TAG}final/gds/$(TOP).gds:
-	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --run-tag $(TAG) --condensed --overwrite --manual-pdk $(CONFIG_FILE)
+frontend: 
+	yosys read_verilog $(PROJECT_DIR)/src/*.v
+
+.PHONY: librelane
+librelane:
+	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --run-tag $(TAG) --overwrite $(CONFIG_FILE)
+	cp -r runs/$(TAG)/final final
+
+.PHONY: view-results
+view-results:
+	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --manual-pdk --last-run --flow OpenInOpenROAD $(CONFIG_FILE)

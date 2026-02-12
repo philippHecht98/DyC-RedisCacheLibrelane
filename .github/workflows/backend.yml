@@ -1,0 +1,26 @@
+name: Librelane Full Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  run-librelane-pipeline:
+    name: Run full librelane pipeline
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/philipphecht98/redis-soc-base:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+            
+      - name: Run full librelane pipeline
+        run: /root/.nix-profile/bin/nix-shell librelane --run "make librelane"
