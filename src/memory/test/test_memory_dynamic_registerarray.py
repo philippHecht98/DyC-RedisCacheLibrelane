@@ -15,16 +15,14 @@ class RegisterArrayTester:
         self.dut = dut
         self.clk = dut.clk
 
-    @cocotb.before_test()
     async def reset(self):
         """Führt einen Reset durch (Active High Reset)."""
-        self.dut.rst_n.value = 1
+        self.dut.rst_n.value = 0
         self.dut.write_op.value = 0
-        self.dut.select_op.value = 0
         self.dut.data_in.value = 0
         
         await RisingEdge(self.clk)
-        self.dut.rst_n.value = 0  # Reset lösen
+        self.dut.rst_n.value = 1  # Reset lösen
         await RisingEdge(self.clk)
 
     async def write(self, data: int):
@@ -36,11 +34,25 @@ class RegisterArrayTester:
         await RisingEdge(self.clk)
         self.dut.write_op.value = 0  # Write beenden
 
-    async def set_select(self, enable: bool):
-        """Aktiviert oder deaktiviert den Ausgang (Tristate Steuerung)."""
-        await FallingEdge(self.clk)
-        self.dut.select_op.value = 1 if enable else 0
-        await RisingEdge(self.clk)
+
+@cocotb.test()
+async def test_reset(dut):
+    """Test: Reset-Verhalten überprüfen."""
+    
+    tester = RegisterArrayTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    await tester.write(0xFF)  # Vor dem Reset einen Wert schreiben, um sicherzustellen, dass Reset funktioniert
+
+    # 1. Reset
+    await tester.reset()
+
+    await ReadOnly() 
+    assert dut.data_out.value == 0, \
+        f"Reset failed! Expected 0, got {hex(dut.data_out.value)}"
+
 
 @cocotb.test()
 async def test_write_simple(dut):
@@ -59,17 +71,69 @@ async def test_write_simple(dut):
     dut._log.info(f"Writing value: {hex(test_value)}...")
     await tester.write(test_value)
 
-    # 3. Überprüfung
-    # Damit wir sehen, ob es gespeichert wurde, müssen wir kurz select anmachen
-    dut.select_op.value = 1
-    await ReadOnly() # Warten bis Simulator Signale aktualisiert hat
-
+    await ReadOnly() 
     assert dut.data_out.value == test_value, \
         f"Write failed! Expected {hex(test_value)}, got {hex(dut.data_out.value)}"
-    
+
+
     dut._log.info("✓ Write verify successful")
+
+
+@cocotb.test()
+async def test_write_overwrite(dut):
+    """Test: Überschreiben von Daten."""
     
+    tester = RegisterArrayTester(dut)
     
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Erstes Schreiben
+    first_value = 0xAA
+    dut._log.info(f"Writing first value: {hex(first_value)}...")
+    await tester.write(first_value)
+
+    await ReadOnly() 
+    assert dut.data_out.value == first_value, \
+        f"First write failed! Expected {hex(first_value)}, got {hex(dut.data_out.value)}"
+    
+    # 3. Zweites Schreiben (Überschreiben)
+    second_value = 0x33
+    dut._log.info(f"Overwriting with second value: {hex(second_value)}...")
+    await tester.write(second_value)
+    await ReadOnly()
+    assert dut.data_out.value == second_value, \
+        f"Overwrite failed! Expected {hex(second_value)}, got {hex(dut.data_out.value)}"
+
+    dut._log.info("✓ Overwrite verify successful")     
+
+@cocotb.test()
+async def test_data_in_without_write(dut):
+    """Test: Daten an data_in anlegen, aber write_op nicht aktivieren."""
+    
+    tester = RegisterArrayTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Daten anlegen ohne write_op zu aktivieren
+    test_value = 0x77
+    dut._log.info(f"Applying data_in value: {hex(test_value)} without write_op...")
+    await FallingEdge(tester.clk)
+    dut.dut.data_in.value = test_value
+    dut.dut.write_op.value = 0  # write_op nicht aktivieren
+
+    await RisingEdge(tester.clk)  # Auf die nächste steigende Flanke warten
+
+    await ReadOnly() 
+    assert dut.data_out.value == 0, \
+        f"Expected 0 after setting data_in without write_op, got {hex(dut.data_out.value)}"
 
 
 def test_register_runner():
