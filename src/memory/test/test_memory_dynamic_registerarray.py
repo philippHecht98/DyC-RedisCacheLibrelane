@@ -126,8 +126,8 @@ async def test_data_in_without_write(dut):
     test_value = 0x77
     dut._log.info(f"Applying data_in value: {hex(test_value)} without write_op...")
     await FallingEdge(tester.clk)
-    dut.dut.data_in.value = test_value
-    dut.dut.write_op.value = 0  # write_op nicht aktivieren
+    dut.data_in.value = test_value
+    dut.write_op.value = 0  # write_op nicht aktivieren
 
     await RisingEdge(tester.clk)  # Auf die nächste steigende Flanke warten
 
