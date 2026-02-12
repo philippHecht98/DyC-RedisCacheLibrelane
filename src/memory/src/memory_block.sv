@@ -5,8 +5,12 @@
  * Supports configurable number of entries.
  */
 
+typedef enum operations logic [1:0] {
+    GET = 2'b01,
+    PUT = 2'b10
+} operations;
+
 module memory_block #(
-    parameter NUM_OPERATIONS = 2,
     parameter NUM_ENTRIES = 16,
     parameter KEY_WIDTH = 16,
     parameter VALUE_WIDTH = 64
@@ -15,7 +19,7 @@ module memory_block #(
     input logic rst_n,
     
     // Control signals
-    input logic [$clog2(NUM_OPERATIONS)-1:0] operation_input,
+    input operation operation_input,
 
     // Data line input
     input logic [KEY_WIDTH-1:0] key_in,
@@ -35,6 +39,21 @@ module memory_block #(
     logic [NUM_ENTRIES-1:0] cell_write_en;
     logic write_op;
     logic read_op;
+
+
+    // Decode operation input
+    always_comb begin
+        write_op = '0;
+        read_op = '0;
+        case (operation_input)
+            GET: read_op = 1'b1;
+            PUT: write_op = 1'b1;
+            default: begin
+                write_op = '0;
+                read_op = '0;
+            end
+        endcase
+    end
 
     // Priority encoder: enable write only for the first unused cell
     always_comb begin

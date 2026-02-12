@@ -5,7 +5,6 @@ module dynamic_register_array #(
     input logic clk,
     input logic rst_n,
     input logic write_op,
-    input logic select_op,
     input logic [LENGTH-1:0] data_in,
     output logic [LENGTH-1:0] data_out
 );

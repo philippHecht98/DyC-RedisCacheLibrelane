@@ -35,7 +35,6 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
-        .select_op(read_op),
         .data_in(key_in),
         .data_out(key_out)
     );
@@ -44,7 +43,6 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
-        .select_op(read_op),
         .data_in(value_in),
         .data_out(value_out)
     );
@@ -53,7 +51,6 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
-        .select_op(read_op),
         .data_in(in_use),
         .data_out(used_out) 
     );
