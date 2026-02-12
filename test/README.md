@@ -1,5 +1,7 @@
 # Pytest + Cocotb Basics
 
+**Test files have been moved to the individual modules in the src directory**
+
 Minimal test file example:
 
 ```python

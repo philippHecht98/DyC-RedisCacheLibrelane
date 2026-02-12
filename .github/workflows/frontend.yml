@@ -33,4 +33,4 @@ jobs:
         run: |
           echo "Running simulation tests..."
           echo "Note: Tests will be implemented in future updates"
-          pytest test/
+          pytest src/
