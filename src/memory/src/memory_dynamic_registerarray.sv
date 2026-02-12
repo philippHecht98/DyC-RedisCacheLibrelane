@@ -2,12 +2,12 @@
 module dynamic_register_array #(
     parameter LENGTH
 )(
-    input wire clk,
-    input wire rst_n,
-    input wire write_op,
-    input wire select_op,
-    input wire [LENGTH-1:0] data_in,
-    output wire [LENGTH-1:0] data_out
+    input logic clk,
+    input logic rst_n,
+    input logic write_op,
+    input logic select_op,
+    input logic [LENGTH-1:0] data_in,
+    output logic [LENGTH-1:0] data_out
 );
 
     reg [LENGTH-1:0] registers;

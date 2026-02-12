@@ -11,29 +11,42 @@ module memory_block #(
     parameter KEY_WIDTH = 16,
     parameter VALUE_WIDTH = 64
 )(
-    input wire clk,
-    input wire rst_n,
+    input logic clk,
+    input logic rst_n,
     
     // Control signals
-    input wire [$clog2(NUM_OPERATIONS)-1:0] operation_input,
+    input logic [$clog2(NUM_OPERATIONS)-1:0] operation_input,
 
     // Data line input
-    input wire [KEY_WIDTH-1:0] key_in,
-    input wire [VALUE_WIDTH-1:0] value_in,
-    //input wire [TTL_WIDTH-1:0] ttl_in,
+    input logic [KEY_WIDTH-1:0] key_in,
+    input logic [VALUE_WIDTH-1:0] value_in,
+    //input logic [TTL_WIDTH-1:0] ttl_in,
     
     // Data line output
-    //output wire [KEY_WIDTH-1:0] key_out,
+    //output logic [KEY_WIDTH-1:0] key_out,
     output reg [VALUE_WIDTH-1:0] value_out,
     output reg hit
-    //output wire [TTL_WIDTH-1:0] ttl_out
+    //output logic [TTL_WIDTH-1:0] ttl_out
 );
 
-    wire [KEY_WIDTH-1:0] cell_key_out [NUM_ENTRIES-1:0];
-    wire [VALUE_WIDTH-1:0] cell_value_out [NUM_ENTRIES-1:0];
-    wire [NUM_ENTRIES-1:0] used_entries;
-    wire write_op;
-    wire read_op;
+    logic [KEY_WIDTH-1:0] cell_key_out [NUM_ENTRIES-1:0];
+    logic [VALUE_WIDTH-1:0] cell_value_out [NUM_ENTRIES-1:0];
+    logic [NUM_ENTRIES-1:0] used_entries;
+    logic [NUM_ENTRIES-1:0] cell_write_en;
+    logic write_op;
+    logic read_op;
+
+    // Priority encoder: enable write only for the first unused cell
+    always_comb begin
+        cell_write_en = '0;
+        if (write_op) begin
+            for (int j = 0; j < NUM_ENTRIES; j++) begin
+                if (!used_entries[j] && (cell_write_en == '0)) begin
+                    cell_write_en[j] = 1'b1;
+                end
+            end
+        end
+    end
 
     
     // Generate memory cells for memory block
@@ -45,7 +58,7 @@ module memory_block #(
             ) temp (
                 .clk(clk),
                 .rst_n(rst_n),
-                .write_op(write_op && !used_entries[i]), // Write to selected cell
+                .write_op(cell_write_en[i]), // Write to first free cell only
                 .key_in(key_in),
                 .value_in(value_in),
                 //.ttl_in(ttl_in),
@@ -70,5 +83,7 @@ module memory_block #(
             end
         end
     end
+
+
 
 endmodule
