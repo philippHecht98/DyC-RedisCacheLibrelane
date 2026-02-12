@@ -1,63 +1,107 @@
-typedef enum logic [1:0]{
-    NOOP = 2'b00,
-    READ = 2'b01,
-    WRITE = 2'b10
-} operation_e;
-module controller (
+module controller import ctrl_types_pkg::* #(
+    parameter NUM_ENTRIES = 16,
+)(
     input logic clk,
     input logic rst_n,
-    input logic [15:0] used,
+    input logic [NUM_ENTRIES-1:0] used,
     input operation_e operation_in,
 
-    output logic [15:0] idx_out,
+    output logic [NUM_ENTRIES-1:0] idx_out,
     output logic write_out,
-    output logic select_out,
-    output logic ready_out
+    output logic select_out
 );
-    localparam NUM_ENTRIES = 16;
-    enum {IDLE, GET, PUT} state, next_state;
+    top_state_e state, next_state;
+
+    // enable and enter for put operation
+    logic put_en, put_enter;
+    assign put_en = (state == ST_PUT);
+    assign put_enter = (next_state == ST_PUT) && (state != ST_PUT);
+
+    // enable and enter for get operation
+    logic get_en, get_enter;
+    assign get_en = (state == ST_GET);
+    assign get_enter = (next_state == ST_GET) && (state != ST_GET);
+
+    // enable and enter for set operation
+    logic set_en, set_enter;
+    assign set_en = (state == ST_SET);
+    assign set_enter = (next_state == ST_SET) && (state != ST_SET);
+
+    // enable and enter for delete operation
+    logic del_en, del_enter;
+    assign del_en = (state == ST_DEL);
+    assign del_enter = (next_state == ST_DEL) && (state != ST_DEL);
+
+    // Command status signals
+    sub_cmd_t put_cmd, get_cmd, set_cmd, del_cmd;
+
+    get_fsm get_fsm_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .en(get_en),
+        .enter(get_enter)
+    );
 
     always_comb begin : control_logic
-
         next_state = state;
-        idx_out = '0;
-        select_out = '0;
-        write_out = '0;
-        ready_out = '0;
 
-         case (state)
-            IDLE: begin 
+        case (state)
+            ST_IDLE: begin 
                 case (operation_in)
                     READ: begin
-                        next_state = GET;
+                        next_state = ST_GET;
                     end
-                    WRITE: begin
-                        next_state = PUT;
+                    CREATE: begin
+                        next_state = ST_SET;
+                    end
+                    UPDATE: begin
+                        next_state = ST_PUT;
+                    end
+                    DELETE: begin
+                        next_state = ST_DEL;
                     end
                     default: begin
-                        next_state = IDLE;
+                        next_state = ST_IDLE;
                     end
                 endcase
             end
-            GET: begin
-                next_state = IDLE;
+            ST_GET: begin
+                if (get_cmd.error) next_state = ST_ERR;
+                else if (get_cmd.done) next_state = ST_IDLE;
             end
-            PUT: begin
-                for (int j = 0; j < NUM_ENTRIES; j++) begin
-                    if (!used[j] && (idx_out == 0)) begin
-                        idx_out[j] = 1'b1;
-                    end
-                end
-                write_out = 1'b1;
-                next_state = IDLE;
+            ST_PUT: begin
+                if (put_cmd.error) next_state = ST_ERR;
+                else if (put_cmd.done) next_state = ST_IDLE;
+
+                // Old logic for put operation, to be replaced with actual command handling
+                // for (int j = 0; j < NUM_ENTRIES; j++) begin
+                //     if (!used[j] && (idx_out == 0)) begin
+                //         idx_out[j] = 1'b1;
+                //     end
+                // end
+                // write_out = 1'b1;
+                // next_state = ST_IDLE;
             end
+            ST_SET: begin
+                if (set_cmd.error) next_state = ST_ERR;
+                else if (set_cmd.done) next_state = ST_IDLE;
+            end
+            ST_DEL: begin
+                if (del_cmd.error) next_state = ST_ERR;
+                else if (del_cmd.done) next_state = ST_IDLE;
+            end
+            ST_ERR: begin
+                // Error recovery logic if needed
+                next_state = ST_IDLE; // For now, just go back to ST_IDLE
+            end
+            default: next_state = ST_IDLE;
         endcase
     end
 
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state <= IDLE;
+            state <= ST_IDLE;
         end else begin
             state <= next_state;
         end

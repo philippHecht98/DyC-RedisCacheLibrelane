@@ -1,5 +1,7 @@
 DESIGN_NAME: controller
 VERILOG_FILES:
+- src/ctrl_types_pkg.sv
+- src/get_fsm.sv
 - src/controller.sv
 
 
