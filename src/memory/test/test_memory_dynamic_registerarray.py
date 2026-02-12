@@ -15,15 +15,16 @@ class RegisterArrayTester:
         self.dut = dut
         self.clk = dut.clk
 
+    @cocotb.before_test()
     async def reset(self):
         """Führt einen Reset durch (Active High Reset)."""
-        self.dut.rst.value = 1
+        self.dut.rst_n.value = 1
         self.dut.write_op.value = 0
         self.dut.select_op.value = 0
         self.dut.data_in.value = 0
         
         await RisingEdge(self.clk)
-        self.dut.rst.value = 0  # Reset lösen
+        self.dut.rst_n.value = 0  # Reset lösen
         await RisingEdge(self.clk)
 
     async def write(self, data: int):
@@ -76,7 +77,7 @@ def test_register_runner():
     proj_path = Path(__file__).resolve().parent
     
     # Deine Verilog Datei
-    sources = [proj_path / "memory_dynamic_registerarray.sv"]
+    sources = [proj_path / ".." / "src" / "memory_dynamic_registerarray.sv"]
 
     runner = get_runner(sim)
     
