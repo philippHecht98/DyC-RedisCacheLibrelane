@@ -39,7 +39,8 @@ module controller import ctrl_types_pkg::* #(
         .clk(clk),
         .rst_n(rst_n),
         .en(get_en),
-        .enter(get_enter)
+        .enter(get_enter),
+        .cmd(get_cmd)
     );
 
     always_comb begin : control_logic

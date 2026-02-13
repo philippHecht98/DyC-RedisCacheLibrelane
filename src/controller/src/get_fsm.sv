@@ -3,7 +3,9 @@ module get_fsm import ctrl_types_pkg::* (
     input logic rst_n,
 
     input logic en,
-    input logic enter
+    input logic enter,
+
+    output sub_cmd_t cmd
 );
     get_state_e state, next_state;
 
