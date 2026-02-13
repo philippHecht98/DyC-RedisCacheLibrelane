@@ -27,9 +27,10 @@ module memory_block #(
     // Data line output
     output logic [KEY_WIDTH-1:0] key_out,
     output logic [VALUE_WIDTH-1:0] value_out,
-    output logic [NUM_ENTRIES-1:0] used_entries
+    output logic [NUM_ENTRIES-1:0] used_entries,
 
-    //output logic [TTL_WIDTH-1:0] ttl_out
+    output logic [NUM_ENTRIES - 1:0] idx_out, 
+    output logic hit
 );
     
     // internal wires from idv. memory cell to memory block
@@ -67,19 +68,33 @@ module memory_block #(
     always_comb begin
         value_out = '0;
         key_out = '0;
-        if (select_op) begin
-            key_out = cell_key_out[index];
-            value_out = cell_value_out[index]; 
-        end
-        else begin
+        idx_out = '0;
+
+        // implementation for get_by_idx operation
+        if (select_op && index != '0) begin
             for (int i = 0; i < NUM_ENTRIES; i++) begin
-                if ((cell_key_out[i] == key_in)) begin
+                if (index[i] && cell_used_out[i]) begin
                     key_out = cell_key_out[i];
                     value_out = cell_value_out[i];
+                    idx_out[i] = 1'b1;
+                    hit = 1'b1;
+                end
+            end
+        end
+
+        // implementation for get_by_key operation
+        else begin
+            for (int i = 0; i < NUM_ENTRIES; i++) begin
+                if (cell_used_out[i] && (cell_key_out[i] == key_in)) begin
+                    key_out = cell_key_out[i];
+                    value_out = cell_value_out[i];
+                    idx_out[i] = 1'b1;
+                    hit = 1'b1;
                 end
             end
         end
     end
+
 
     assign used_entries = cell_used_out;
     

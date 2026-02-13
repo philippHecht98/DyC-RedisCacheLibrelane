@@ -207,7 +207,10 @@ async def test_reading_cell_by_key(dut):
 
         # Lesen des Werts über den Schlüssel und Überprüfen der Korrektheit
         read_value = await tester.read_by_key(key)
+
+        assert dut.hit.value == 1, f"Expected hit signal to be 1 for key {key}, but got {dut.hit.value}."
         assert read_value == value, f"Expected value {value} for key {key}, but got {read_value}."
+
 
 @cocotb.test()
 async def test_reading_cell_by_index(dut):
@@ -261,7 +264,8 @@ async def test_reading_cell_by_select_with_input_key_matching(dut):
     dut.key_in.value = 2  # Schlüssel setzen, der mit dem ersten Eintrag übereinstimmt
     dut.select_op.value = 1  # Select-Operation aktivieren
     await FallingEdge(tester.clk)  # Warten auf die Ausgabe
-    
+
+    assert du    
     assert tester.key_out.value == 1, f"Expected key_out 1 for select operation with matching index, but got {tester.key_out.value}."
     assert tester.value_out.value == 2, f"Expected value_out 2 for select operation with matching index, but got {tester.value_out.value}."
 
