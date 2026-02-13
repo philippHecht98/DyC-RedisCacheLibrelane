@@ -15,7 +15,9 @@ module memory_block #(
     input wire rst_n,
     
     // Control signals
-    input wire [$clog2(NUM_OPERATIONS)-1:0] operation_input,
+    input wire write_in,
+    input wire read_in,
+    input wire delete_in,
 
     // Data line input
     input wire [KEY_WIDTH-1:0] key_in,
@@ -32,28 +34,34 @@ module memory_block #(
     wire [KEY_WIDTH-1:0] cell_key_out [NUM_ENTRIES-1:0];
     wire [VALUE_WIDTH-1:0] cell_value_out [NUM_ENTRIES-1:0];
     wire [NUM_ENTRIES-1:0] used_entries;
+
     wire write_op;
     wire read_op;
-
+    wire delete_op;
     
+    // Per-cell reset: global reset OR targeted delete
+    // When delete_in is active, the cell matching key_in gets its rst_n pulled low
+    wire [NUM_ENTRIES-1:0] cell_rst_n;
+
     // Generate memory cells for memory block
     generate
         for (genvar i = 0; i < NUM_ENTRIES; i++) begin : gen_memory_cell
+            // Reset this cell if global reset OR (delete requested AND this cell matches the key)
+            assign cell_rst_n[i] = rst_n & ~(delete_in & used_entries[i] & (cell_key_out[i] == key_in));
+
             memory_cell #(
                 .KEY_WIDTH(KEY_WIDTH),
                 .VALUE_WIDTH(VALUE_WIDTH)
             ) temp (
                 .clk(clk),
-                .rst_n(rst_n),
-                .write_op(write_op && !used_entries[i]), // Write to selected cell
+                .rst_n(cell_rst_n[i]),        // per-cell reset (low = reset)
+                .write_op(write_op && !used_entries[i]),
                 .key_in(key_in),
                 .value_in(value_in),
-                //.ttl_in(ttl_in),
-                .read_op(read_op && used_entries[i]), // Read from selected cell
+                .read_op(read_op && used_entries[i]),
                 .key_out(cell_key_out[i]),
                 .value_out(cell_value_out[i]),
-                .used_out(used_entries[i]) // Track which cells are used
-                //.ttl_out(cell_ttl_out[i])
+                .used_out(used_entries[i])
             );
         end
     endgenerate
