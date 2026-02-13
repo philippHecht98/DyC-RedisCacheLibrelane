@@ -8,7 +8,8 @@ module controller import ctrl_types_pkg::* #(
 
     output logic [NUM_ENTRIES-1:0] idx_out,
     output logic write_out,
-    output logic select_out
+    output logic select_out, 
+    output logic delete_out
 );
     top_state_e state, next_state;
 
@@ -41,6 +42,25 @@ module controller import ctrl_types_pkg::* #(
         .en(get_en),
         .enter(get_enter),
         .cmd(get_cmd)
+    );
+
+
+    // Delete FSM memory-facing signals
+    logic        del_select_out;
+    logic        del_write_out;
+    logic [NUM_ENTRIES-1:0] del_idx_out;
+
+    del_fsm #(.NUM_ENTRIES(NUM_ENTRIES)) del_fsm_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .en(del_en),
+        .enter(del_enter),
+        .hit(/* connect to memory hit */),
+        .hit_idx(/* connect to memory idx_out */),
+        .select_out(del_select_out),
+        .write_out(del_write_out),
+        .idx_out(del_idx_out),
+        .cmd(del_cmd)
     );
 
     always_comb begin : control_logic
