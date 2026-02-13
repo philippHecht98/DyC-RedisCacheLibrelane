@@ -19,7 +19,7 @@ package ctrl_types_pkg;
 
     // Update the substate enums to reflect actual substates for each operation
     typedef enum logic [1:0] { PUT_ST_START, SOMETHING, ELSE } put_substate_e;
-    typedef enum logic [1:0] { GET_ST_START, SOMETHING, ELSE } get_substate_e;
+    typedef enum logic [1:0] { GET_ST_START } get_substate_e;
     typedef enum logic [1:0] { SET_ST_START, SOMETHING, ELSE } set_substate_e;
     typedef enum logic [1:0] { DEL_ST_START, SOMETHING, ELSE } del_substate_e;
 
