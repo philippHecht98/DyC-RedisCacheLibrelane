@@ -58,17 +58,9 @@ module del_fsm #(
                 idx_out    = '0;
                 delete_out = 1'b0;
                 next_state = DEL_ST_CHECK_EXISTS;
-            end
 
-            // ----------------------------------------------------------
-            // DEL_ST_CHECK_EXISTS – Read the hit result from memory.
-            // If HIT  → save the index and proceed to ST_DEL_DELETE.
-            // If !HIT → the key does not exist; go to ST_DEL_ERROR.
-
-            // This is only a temporary state inbetween the two flanks of the clock
-            // calculates the next state based on the negative edge of the clock
-            // ----------------------------------------------------------
-            DEL_ST_CHECK_EXISTS: begin
+                // directly transistion to Delete / Error state as the result of the hit is 
+                // set after the negative edge of the clock 
                 if (hit) begin
                     next_state = ctrl_types_pkg::ST_DEL_DELETE;
                 end else begin
@@ -80,26 +72,16 @@ module del_fsm #(
             // ST_DEL_DELETE – Erase the cell.
             // Set delete_out to 1 to indicate a delete operation
             // Outputs: write=0, delete_out=1, idx=saved_idx (one-hot index of the cell to delete)
-
             // ----------------------------------------------------------
             ST_DEL_DELETE: begin
-                select_out = 1'b0;
-                write_out  = 1'b0;
-                delete_out = 1'b1;
-                idx_out    = idx_in; // Use the index from the hit result to target the delete
-                next_state = ctrl_types_pkg::ST_DEL_DONE;
-            end
+                select_out  = 1'b0;
+                write_out   = 1'b0;
+                delete_out  = 1'b1;
+                idx_out     = idx_in; // Use the index from the hit result to target the delete
+                cmd.done    = 1'b1; // Signal completion to parent FSM
 
-            // ----------------------------------------------------------
-            // ST_DEL_DONE – Deletion complete.
-            // Signal cmd.done=1 so the parent FSM returns to ST_IDLE.
-            // ----------------------------------------------------------
-            ST_DEL_DONE: begin
-                write_out  = 1'b0;
-                select_out = 1'b0;
-                delete_out = 1'b0;
-                idx_out    = '0;
-                cmd.done = 1'b1;
+                // directly transistion back to the START state to be ready for the next operation
+                next_state = ctrl_types_pkg::DEL_ST_START;
             end
 
             // ----------------------------------------------------------
@@ -107,11 +89,12 @@ module del_fsm #(
             // Signal cmd.error=1 so the parent FSM can handle the error.
             // ----------------------------------------------------------
             ST_DEL_ERROR: begin
-                write_out  = 1'b0;
-                select_out = 1'b0;
-                delete_out = 1'b0;
-                idx_out    = '0;
-                cmd.error = 1'b1;
+                write_out   = 1'b0;
+                select_out  = 1'b0;
+                delete_out  = 1'b0;
+                idx_out     = 1'b0;
+                cmd.error   = 1'b1;
+                next_state = DEL_ST_START; // Ready for the next operation
             end
 
             default: next_state = DEL_ST_START;
