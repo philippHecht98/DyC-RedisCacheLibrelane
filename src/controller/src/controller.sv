@@ -128,3 +128,11 @@ module controller import ctrl_types_pkg::* #(
         end
     end
 endmodule
+
+
+/*
+WICHTIG:
+    Wie gehen wir damit um, dass aus den substates eigentlich direkt wieder zurück gesprungen wird???
+    Vorschlag: IF hat ein register zum speichern des erfolgs / misserfolgs der operation und schreibt diese bei ner postiven flanke von rdy vom controller
+        Gleichzeitig werden diese nicht resetted solange der IF busy ist mit seiner operation
+*/

@@ -13,9 +13,8 @@ del_fsm_states = Enum(
     "del_fsm_states",
     [
         ("DEL_ST_START", 0),
-        ("DEL_ST_CHECK_EXISTS", 1),
-        ("DEL_ST_DELETE", 2),
-        ("DEL_ST_DONE", 3)
+        ("DEL_ST_DELETE", 1),
+        ("DEL_ST_ERROR", 2)
     ]
 )
 
@@ -151,41 +150,42 @@ async def test_delete_hit_path(dut):
     assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should be in START state after entering"
     await tester.check_output_signals_are_resetted()
 
-    # after inital START state the FSM directly traverses into the CHECK_EXISTS state
-    # thus we can check the outputs in CHECK_EXISTS state right after the rising edge without providing a hit signal yet
-    await ReadOnly()
-    assert tester.state == del_fsm_states.DEL_ST_CHECK_EXISTS.value, "FSM should be in CHECK_EXISTS state after entering"
-    assert tester.select_out.value == 0, "select_out should be 0 in CHECK_EXISTS state"
-    assert tester.write_out.value == 0, "write_out should be 0 in CHECK_EXISTS state"
-    assert tester.delete_out.value == 0, "delete_out should be 0 in CHECK_EXISTS state"
-
+    
+    # wait for memory block to process hit and transition to DELETE
     await FallingEdge(dut.clk)
 
     # Provide a hit signal in CHECK_EXISTS
     dut.hit.value = 1
     dut.idx_in.value = 0b0010  # one-hot index for cell 1
 
-    # HIT was detected in the simulation thus jumping to ST_DEL_DELETE state
-    await RisingEdge(dut.clk)
-
-    assert tester.state == del_fsm_states.DEL_ST_DELETE.value, "FSM should be in DELETE state after hit is asserted"
-    assert tester.delete_out.value == 1, "delete_out should be 1 in DELETE state"
-    assert tester.write_out.value == 0, "write_out should be 0 in DELETE state"
-    assert tester.select_out.value == 0, "select_out should be 0 in DELETE state"
-    assert tester.idx_out.value == 0b0010, "idx_out should reflect idx_in in DELETE state"
-    assert tester.cmd_done.value == 0, "cmd.done should be 0 in DELETE state"
-    assert tester.cmd_error.value == 0, "cmd.error should be 0 in DELETE state"
-    
-    
-    # FSM should now be in DONE state
+    # Wait until Start State processed hit
     await ReadOnly()
-    assert tester.state == del_fsm_states.DEL_ST_DONE.value, "FSM should be in DONE state after DELETE"
-    assert tester.cmd_done.value == 1, "cmd.done should be 1 in DONE state"
-    assert tester.cmd_error.value == 0, "cmd.error should be 0 in DONE state"
 
-    # check that after done output signals are resetted
     await RisingEdge(dut.clk)
-    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should return to START state after DONE"
+
+    assert tester.state == del_fsm_states.DEL_ST_DELETE.value, "FSM should still be in DELETE state after entering"
+    assert tester.select_out.value == 0, "select_out should be 0 in DELETE state"
+    assert tester.write_out.value == 0, "write_out should be 0 in DELETE state"
+    assert tester.delete_out.value == 1, "delete_out should be 1 in DELETE state"
+    assert tester.idx_out.value == 0b0010, "idx_out should reflect idx_in in DELETE state"
+
+    # simulating now the memory block to process the delete command
+    await FallingEdge(dut.clk)
+
+    await ReadOnly()
+
+
+    await RisingEdge(dut.clk)
+
+    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should be in START state after delete is processed"
+    assert tester.cmd_done.value == 1, "cmd.done should be 1 in START state"
+    assert tester.cmd_error.value == 0, "cmd.error should be 0 in START state"
+
+
+    # Delete went through 
+    await RisingEdge(dut.clk)
+
+    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should be in START state after hit is asserted"
     tester.check_output_signals_are_resetted()
 
     dut._log.info("✓ Test 2 passed: Delete with hit transitions correctly through all states")
