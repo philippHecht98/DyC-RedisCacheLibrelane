@@ -1,11 +1,23 @@
 import os
 from pathlib import Path
 
+from enum import Enum
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, FallingEdge
 from cocotb_tools.runner import get_runner
 from cocotb.triggers import ReadOnly
+
+del_fsm_states = Enum(
+    "del_fsm_states",
+    [
+        ("DEL_ST_START", 0),
+        ("DEL_ST_CHECK_EXISTS", 1),
+        ("DEL_ST_DELETE", 2),
+        ("DEL_ST_DONE", 3)
+    ]
+)
 
 
 class DelFsmTester:
@@ -32,6 +44,11 @@ class DelFsmTester:
         @property
         def value(self):
             return self._val
+
+    @property
+    def state(self):
+        """Return the current FSM state as an integer."""
+        return int(self.dut.state.value)
 
     @property
     def cmd_done(self):
@@ -80,7 +97,14 @@ class DelFsmTester:
         self.idx_in.value = 1 << idx
         await RisingEdge(self.clk)
 
-
+    async def check_output_signals_are_resetted(self):
+        """Check that all output signals are in their default/idle values."""
+        assert self.cmd_done.value == 0, "cmd.done should be 0"
+        assert self.cmd_error.value == 0, "cmd.error should be 0"
+        assert self.write_out.value == 0, "write_out should be 0"
+        assert self.select_out.value == 0, "select_out should be 0"
+        assert self.delete_out.value == 0, "delete_out should be 0"
+        assert self.idx_out.value == 0, "idx_out should be 0"
 
 
 @cocotb.test()
@@ -97,12 +121,11 @@ async def test_reset_from_every_state(dut):
     await tester.reset()
 
     await ReadOnly()
-    assert tester.cmd_done.value == 0, "cmd.done should be 0 after reset"
-    assert tester.cmd_error.value == 0, "cmd.error should be 0 after reset"
-    assert tester.write_out.value == 0, "write_out should be 0 after reset"
-    assert tester.select_out.value == 0, "select_out should be 0 after reset"
-    assert tester.delete_out.value == 0, "delete_out should be 0 after reset"
-    assert tester.idx_out.value == 0, "idx_out should be 0 after reset"
+
+    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should be in DEL_ST_START state after reset"
+
+    # Check that all outputs are reset to default values
+    await tester.check_output_signals_are_resetted()
 
     dut._log.info("✓ Test 1 passed: Reset returns FSM to start state")
 
@@ -121,27 +144,49 @@ async def test_delete_hit_path(dut):
     # Enter the FSM and enable it
     dut.en.value = 1
     dut.enter.value = 1
-    await RisingEdge(dut.clk)
-    dut.enter.value = 0
 
-    assert tester.select_out.value == 0, "select_out should be 0 in START state"
-    assert tester.write_out.value == 0, "write_out should be 0 in START state"
-    assert tester.delete_out.value == 0, "delete_out should be 0 in START state"
+    await RisingEdge(dut.clk)
+
+    # After enabling sub state switch to DEL_ST_START
+    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should be in START state after entering"
+    await tester.check_output_signals_are_resetted()
+
+    # after inital START state the FSM directly traverses into the CHECK_EXISTS state
+    # thus we can check the outputs in CHECK_EXISTS state right after the rising edge without providing a hit signal yet
+    await ReadOnly()
+    assert tester.state == del_fsm_states.DEL_ST_CHECK_EXISTS.value, "FSM should be in CHECK_EXISTS state after entering"
+    assert tester.select_out.value == 0, "select_out should be 0 in CHECK_EXISTS state"
+    assert tester.write_out.value == 0, "write_out should be 0 in CHECK_EXISTS state"
+    assert tester.delete_out.value == 0, "delete_out should be 0 in CHECK_EXISTS state"
 
     await FallingEdge(dut.clk)
 
     # Provide a hit signal in CHECK_EXISTS
     dut.hit.value = 1
     dut.idx_in.value = 0b0010  # one-hot index for cell 1
+
+    # HIT was detected in the simulation thus jumping to ST_DEL_DELETE state
     await RisingEdge(dut.clk)
 
-    assert tester.state
-
-
+    assert tester.state == del_fsm_states.DEL_ST_DELETE.value, "FSM should be in DELETE state after hit is asserted"
+    assert tester.delete_out.value == 1, "delete_out should be 1 in DELETE state"
+    assert tester.write_out.value == 0, "write_out should be 0 in DELETE state"
+    assert tester.select_out.value == 0, "select_out should be 0 in DELETE state"
+    assert tester.idx_out.value == 0b0010, "idx_out should reflect idx_in in DELETE state"
+    assert tester.cmd_done.value == 0, "cmd.done should be 0 in DELETE state"
+    assert tester.cmd_error.value == 0, "cmd.error should be 0 in DELETE state"
+    
+    
     # FSM should now be in DONE state
     await ReadOnly()
+    assert tester.state == del_fsm_states.DEL_ST_DONE.value, "FSM should be in DONE state after DELETE"
     assert tester.cmd_done.value == 1, "cmd.done should be 1 in DONE state"
     assert tester.cmd_error.value == 0, "cmd.error should be 0 in DONE state"
+
+    # check that after done output signals are resetted
+    await RisingEdge(dut.clk)
+    assert tester.state == del_fsm_states.DEL_ST_START.value, "FSM should return to START state after DONE"
+    tester.check_output_signals_are_resetted()
 
     dut._log.info("✓ Test 2 passed: Delete with hit transitions correctly through all states")
 
