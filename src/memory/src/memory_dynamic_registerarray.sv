@@ -12,7 +12,7 @@ module dynamic_register_array #(
 
     reg [LENGTH-1:0] registers;
 
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             registers <=  '0;
         end else if (write_op) begin
