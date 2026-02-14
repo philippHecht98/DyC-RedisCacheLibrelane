@@ -21,7 +21,7 @@ package ctrl_types_pkg;
     typedef enum logic [1:0] { PUT_ST_START, SOMETHING_PUT, ELSE_PUT } put_substate_e;
     typedef enum logic [1:0] { GET_ST_START, SOMETHING_GET, ELSE_GET } get_substate_e;
     typedef enum logic [1:0] { SET_ST_START, SOMETHING_SET, ELSE_SET } set_substate_e;
-    typedef enum logic [2:0] { DEL_ST_START, DEL_ST_CHECK_EXISTS, ST_DEL_DELETE, ST_DEL_DONE, ST_DEL_ERROR } del_substate_e;
+    typedef enum logic [1:0] { DEL_ST_START, DEL_ST_DELETE, DEL_ST_ERROR } del_substate_e;
 
     typedef struct packed {
         logic done;
