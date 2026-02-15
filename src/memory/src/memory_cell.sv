@@ -12,24 +12,22 @@ module memory_cell #(
     parameter VALUE_WIDTH
     //parameter TTL_WIDTH
 )(
-    input wire clk,
-    input wire rst_n,
+    input logic clk,
+    input logic rst_n,
     
     // Write interface
-    input wire write_op,
-    input wire [KEY_WIDTH-1:0] key_in,
-    input wire [VALUE_WIDTH-1:0] value_in,
-    //input wire [TTL_WIDTH-1:0] ttl_in,
+    input logic write_op,
+    input logic [KEY_WIDTH-1:0] key_in,
+    input logic [VALUE_WIDTH-1:0] value_in,
+    //input logic [TTL_WIDTH-1:0] ttl_in,
     
     // Read interface
-    input wire read_op,
-    output reg [KEY_WIDTH-1:0] key_out,
-    output reg [VALUE_WIDTH-1:0] value_out,
-    output reg used_out // Indicates if the cell is currently used (valid)
+    input logic read_op,
+    output logic [KEY_WIDTH-1:0] key_out,
+    output logic [VALUE_WIDTH-1:0] value_out,
+    output logic used_out // Indicates if the cell is currently used (valid)
     //output reg [TTL_WIDTH-1:0] ttl_out
 );
-    wire in_use;
-
     // initialize registers by using memory_dynamic_registerarray
     dynamic_register_array #(.LENGTH(KEY_WIDTH)) key_reg (
         .clk(clk),
