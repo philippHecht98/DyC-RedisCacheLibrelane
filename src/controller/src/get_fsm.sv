@@ -1,4 +1,4 @@
-module get_fsm import ctrl_types_pkg::* (
+module get_fsm (
     // management inputs
     input logic clk,
     input logic rst_n,
@@ -10,13 +10,15 @@ module get_fsm import ctrl_types_pkg::* (
     input logic hit,
 
     // management outputs
-    output sub_cmd_t cmd,
+    output ctrl_types_pkg::sub_cmd_t cmd,
 
     // logic outputs
     output logic rdy_out,
     output logic op_succ
 );
-    get_state_e state, next_state;
+    import ctrl_types_pkg::*;
+
+    get_substate_e state, next_state;
 
     always_comb begin : control_logic
         next_state = state;
