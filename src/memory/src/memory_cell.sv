@@ -33,6 +33,7 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
+        .select_op(read_op),
         .data_in(key_in),
         .data_out(key_out)
     );
@@ -41,8 +42,18 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
+        .select_op(read_op),
         .data_in(value_in),
         .data_out(value_out)
+    );
+
+    dynamic_register_array #(.LENGTH(1)) used_reg (
+        .clk(clk),
+        .rst_n(rst_n),
+        .write_op(write_op),
+        .select_op(read_op),
+        .data_in(in_use),
+        .data_out(used_out) 
     );
 
     //dynamic_register_array #(.LENGTH(TTL_WIDTH)) ttl_reg (
@@ -54,7 +65,6 @@ module memory_cell #(
     //    .data_out(ttl_out)
     //);
 
-    // Derive used_out combinationally from key_out (already registered)
-    assign used_out = (key_out != '0);
+    assign in_use = (key_out != '0);
 
 endmodule
