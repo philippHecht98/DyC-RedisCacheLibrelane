@@ -18,7 +18,7 @@ package ctrl_types_pkg;
     // Update the substate enums to reflect actual substates for each operation
     typedef enum logic [1:0] { UPSERT_ST_START} put_substate_e;
     typedef enum logic [1:0] { GET_ST_START } get_substate_e;
-    typedef enum logic [1:0] { DEL_ST_START } del_substate_e;
+    typedef enum logic [1:0] { DEL_ST_START, DEL_ST_DELETE, DEL_ST_ERROR } del_substate_e;
 
     typedef struct packed {
         logic done;
