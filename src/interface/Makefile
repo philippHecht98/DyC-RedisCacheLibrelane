@@ -1,6 +1,6 @@
 WORK_DIR=$(shell pwd)
-TOP=memory
-TAG=memory-run
+TOP=interface
+TAG=interface-run
 
 PDK_ROOT ?= $(WORK_DIR)/../../pdk
 PDK = ihp-sg13g2
