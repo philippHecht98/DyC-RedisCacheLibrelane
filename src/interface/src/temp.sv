@@ -34,6 +34,7 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     output logic        s_axi_rvalid,
     input  logic        s_axi_rready,
 
+
     // --- Controller-facing ports ---
     // To controller
     output operation_e              operation_out,
@@ -49,40 +50,25 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 );
 
     // =========================================================================
-    // Computed constants for register layout
-    // =========================================================================
-    //  Number of ARCHITECTURE-wide registers needed to hold VALUE_WIDTH bits.
-    //  E.g. VALUE_WIDTH=64, ARCHITECTURE=32 -> 2 registers
-    //       VALUE_WIDTH=128, ARCHITECTURE=32 -> 4 registers
-    localparam NUM_VAL_REGS = (VALUE_WIDTH + ARCHITECTURE - 1) / ARCHITECTURE;
-
-    // Register index assignments (word-addressed, each +1 = +4 bytes)
-    localparam ADDR_OP       = 0;
-    localparam ADDR_KEY      = 1;
-    localparam ADDR_VAL_BASE = 2;                              // value_regs[0..N-1]
-    localparam ADDR_STATUS   = ADDR_VAL_BASE + NUM_VAL_REGS;   // status (read-only)
-    localparam ADDR_RES_BASE = ADDR_STATUS + 1;                 // result_regs[0..N-1]
-    localparam ADDR_RES_IDX  = ADDR_RES_BASE + NUM_VAL_REGS;   // result index
-    localparam NUM_REGS      = ADDR_RES_IDX + 1;
-    localparam REG_ADDR_BITS = $clog2(NUM_REGS) > 0 ? $clog2(NUM_REGS) : 1;
-
-    // =========================================================================
-    // Register Map (auto-generated from parameters)
+    // Register Map (active addresses decoded from awaddr/araddr[4:2])
     //
-    //  Index       | Offset | Name               | R/W | Description
-    // -------------+--------+--------------------+-----+-------------------------
-    //  0           | 0x00   | op_reg             | W   | Operation code
-    //  1           | 0x04   | key_reg            | W   | Key
-    //  2..N+1      | 0x08.. | value_regs[0..N-1] | W   | Value (ARCH bits each)
-    //  N+2         | ...    | status_reg         | R   | {state, error, hit, done}
-    //  N+3..2N+2   | ...    | result_regs[0..N-1]| R   | Result value chunks
-    //  2N+3        | ...    | result_index_reg   | R   | Matching index
+    //  Offset  | Name            | R/W | Description
+    // ---------+-----------------+-----+---------------------------------------
+    //  0x00    | op_reg          | W   | Operation code (maps to operation_e)
+    //  0x04    | key_reg         | W   | Key [KEY_WIDTH-1:0]
+    //  0x08    | value_reg_lo    | W   | Value bits [31:0]
+    //  0x0C    | value_reg_hi    | W   | Value bits [63:32]
+    //  0x10    | status_reg      | R   | {done, hit, error, state}
+    //  0x14    | result_reg_lo   | R   | Result value bits [31:0]
+    //  0x18    | result_reg_hi   | R   | Result value bits [63:32]
+    //  0x1C    | result_index    | R   | Matching index from memory
     // =========================================================================
 
-    // --- CPU-writable registers ---
-    logic [ARCHITECTURE-1:0] op_reg;
-    logic [ARCHITECTURE-1:0] key_reg;
-    logic [ARCHITECTURE-1:0] value_regs  [NUM_VAL_REGS];
+    // --- CPU-writable registers (individual components) ---
+    logic [ARCHITECTURE-1:0] op_reg;          // operation code
+    logic [ARCHITECTURE-1:0] key_reg;         // key
+    logic [ARCHITECTURE-1:0] value_reg_lo;    // value lower 32 bits
+    logic [ARCHITECTURE-1:0] value_reg_hi;    // value upper 32 bits
 
     // --- HW-writable registers (individual status components) ---
     logic                    status_done;
@@ -90,17 +76,18 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     logic                    status_error;
     if_state_e               fsm_state;
 
-    logic [ARCHITECTURE-1:0] result_regs [NUM_VAL_REGS];
+    logic [ARCHITECTURE-1:0] result_reg_lo;
+    logic [ARCHITECTURE-1:0] result_reg_hi;
     logic [ARCHITECTURE-1:0] result_index_reg;
 
     // --- Compose the status register from individual fields ---
     logic [ARCHITECTURE-1:0] status_reg;
     assign status_reg = {
         {(ARCHITECTURE-5){1'b0}},   // unused upper bits
-        fsm_state,                   // bits [4:3] -- current FSM state
-        status_error,                // bit  [2]   -- error flag
-        status_hit,                  // bit  [1]   -- hit flag
-        status_done                  // bit  [0]   -- done flag
+        fsm_state,                   // bits [4:3] — current FSM state
+        status_error,                // bit  [2]   — error flag
+        status_hit,                  // bit  [1]   — hit flag
+        status_done                  // bit  [0]   — done flag
     };
 
     // --- Detect when CPU writes to the operation register (trigger) ---
@@ -110,24 +97,8 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 
     // --- Wire output ports from registers ---
     assign key_out       = key_reg[KEY_WIDTH-1:0];
+    assign value_out     = {value_reg_hi[VALUE_WIDTH-ARCHITECTURE-1:0], value_reg_lo};
     assign operation_out = operation_e'(op_reg[2:0]);
-
-    // Concatenate value_regs[0..N-1] -> value_out[VALUE_WIDTH-1:0]
-    // value_regs[0] = bits [ARCH-1:0], value_regs[1] = bits [2*ARCH-1:ARCH], etc.
-    generate
-        for (genvar g = 0; g < NUM_VAL_REGS; g++) begin : gen_value_out
-            if ((g + 1) * ARCHITECTURE <= VALUE_WIDTH) begin : full_chunk
-                assign value_out[g*ARCHITECTURE +: ARCHITECTURE] = value_regs[g];
-            end else begin : partial_chunk
-                assign value_out[VALUE_WIDTH-1 : g*ARCHITECTURE] =
-                    value_regs[g][VALUE_WIDTH - g*ARCHITECTURE - 1 : 0];
-            end
-        end
-    endgenerate
-
-    // --- Address index extracted from AXI address (word-aligned) ---
-    wire [REG_ADDR_BITS-1:0] wr_addr_idx = aw_addr_latched[REG_ADDR_BITS+1:2];
-    wire [REG_ADDR_BITS-1:0] rd_addr_idx = s_axi_araddr[REG_ADDR_BITS+1:2];
 
     // =========================================================================
     // AXI Write: Address Latch + Data Decode
@@ -136,6 +107,8 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
         if (!rst_n) begin
             op_reg          <= '0;
             key_reg         <= '0;
+            value_reg_lo    <= '0;
+            value_reg_hi    <= '0;
             s_axi_awready   <= '0;
             s_axi_wready    <= '0;
             s_axi_bvalid    <= '0;
@@ -143,8 +116,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
             aw_latched      <= '0;
             aw_addr_latched <= '0;
             op_written      <= '0;
-            for (int i = 0; i < NUM_VAL_REGS; i++)
-                value_regs[i] <= '0;
         end else begin
             // Default: clear single-cycle pulse
             op_written <= '0;
@@ -164,18 +135,16 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 
             // --- Decode and store when both address and data are ready ---
             if (s_axi_wvalid && s_axi_wready) begin
-                if (wr_addr_idx == ADDR_OP[REG_ADDR_BITS-1:0]) begin
-                    op_reg     <= s_axi_wdata;
-                    op_written <= 1'b1;
-                end else if (wr_addr_idx == ADDR_KEY[REG_ADDR_BITS-1:0]) begin
-                    key_reg <= s_axi_wdata;
-                end else begin
-                    // Check if address falls in value register range
-                    for (int i = 0; i < NUM_VAL_REGS; i++) begin
-                        if (wr_addr_idx == (ADDR_VAL_BASE + i))
-                            value_regs[i] <= s_axi_wdata;
+                case (aw_addr_latched[4:2])
+                    3'd0: begin
+                        op_reg     <= s_axi_wdata;
+                        op_written <= 1'b1;      // trigger FSM
                     end
-                end
+                    3'd1: key_reg      <= s_axi_wdata;
+                    3'd2: value_reg_lo <= s_axi_wdata;
+                    3'd3: value_reg_hi <= s_axi_wdata;
+                    default: ; // ignore writes to read-only registers
+                endcase
                 s_axi_bvalid <= 1'b1;
                 s_axi_bresp  <= 2'b00;  // OKAY
                 s_axi_wready <= 1'b0;
@@ -203,27 +172,17 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 
             // Return data based on address
             if (s_axi_arvalid && s_axi_arready) begin
-                // Default
-                s_axi_rdata <= '0;
-
-                if (rd_addr_idx == ADDR_OP[REG_ADDR_BITS-1:0]) begin
-                    s_axi_rdata <= op_reg;
-                end else if (rd_addr_idx == ADDR_KEY[REG_ADDR_BITS-1:0]) begin
-                    s_axi_rdata <= key_reg;
-                end else if (rd_addr_idx == ADDR_STATUS[REG_ADDR_BITS-1:0]) begin
-                    s_axi_rdata <= status_reg;
-                end else if (rd_addr_idx == ADDR_RES_IDX[REG_ADDR_BITS-1:0]) begin
-                    s_axi_rdata <= result_index_reg;
-                end else begin
-                    // Check value and result register ranges
-                    for (int i = 0; i < NUM_VAL_REGS; i++) begin
-                        if (rd_addr_idx == (ADDR_VAL_BASE + i))
-                            s_axi_rdata <= value_regs[i];
-                        if (rd_addr_idx == (ADDR_RES_BASE + i))
-                            s_axi_rdata <= result_regs[i];
-                    end
-                end
-
+                case (s_axi_araddr[4:2])
+                    3'd0: s_axi_rdata <= op_reg;
+                    3'd1: s_axi_rdata <= key_reg;
+                    3'd2: s_axi_rdata <= value_reg_lo;
+                    3'd3: s_axi_rdata <= value_reg_hi;
+                    3'd4: s_axi_rdata <= status_reg;
+                    3'd5: s_axi_rdata <= result_reg_lo;
+                    3'd6: s_axi_rdata <= result_reg_hi;
+                    3'd7: s_axi_rdata <= result_index_reg;
+                    default: s_axi_rdata <= '0;
+                endcase
                 s_axi_rvalid <= 1'b1;
                 s_axi_rresp  <= 2'b00;  // OKAY
             end
@@ -235,7 +194,7 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     end
 
     // =========================================================================
-    // Transaction FSM: bridges AXI register writes -> controller start/done
+    // Transaction FSM: bridges AXI register writes → controller start/done
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -244,9 +203,9 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
             status_done      <= '0;
             status_hit       <= '0;
             status_error     <= '0;
+            result_reg_lo    <= '0;
+            result_reg_hi    <= '0;
             result_index_reg <= '0;
-            for (int i = 0; i < NUM_VAL_REGS; i++)
-                result_regs[i] <= '0;
         end else begin
             case (fsm_state)
 
@@ -276,14 +235,10 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
                 IF_ST_WAIT: begin
                     start_out <= '0;
                     if (done_in) begin
-                        // Latch result value into result_regs[0..N-1]
-                        for (int i = 0; i < NUM_VAL_REGS; i++) begin
-                            if ((i + 1) * ARCHITECTURE <= VALUE_WIDTH)
-                                result_regs[i] <= result_value_in[i*ARCHITECTURE +: ARCHITECTURE];
-                            else
-                                result_regs[i] <= {{(ARCHITECTURE - (VALUE_WIDTH - i*ARCHITECTURE)){1'b0}},
-                                                    result_value_in[VALUE_WIDTH-1 : i*ARCHITECTURE]};
-                        end
+                        // Latch results from controller/memory
+                        result_reg_lo    <= result_value_in[ARCHITECTURE-1:0];
+                        result_reg_hi    <= {{(2*ARCHITECTURE - VALUE_WIDTH){1'b0}},
+                                             result_value_in[VALUE_WIDTH-1:ARCHITECTURE]};
                         result_index_reg <= {{(ARCHITECTURE - NUM_ENTRIES){1'b0}},
                                              result_index_in};
                         status_hit       <= hit_in;
