@@ -47,6 +47,7 @@ class MemoryBlockTester:
         self.key_in.value = 0
         self.value_in.value = 0
         self.write_op.value = 0
+        self.delete_op.value = 0
         self.select_by_index.value = 0
 
         await ReadOnly()
@@ -92,6 +93,7 @@ class MemoryBlockTester:
     async def get_used_entries(self):
         """Liest die Anzahl der verwendeten Einträge aus."""
         self.dut._log.info(f"Used entries bitmask: {self.used_entries.value}")
+        print(f"Used entries calculation: {self.used_entries.value.count('1')} used entries.")
         return self.used_entries.value.count('1')
 
 
@@ -306,6 +308,202 @@ async def test_reading_cell_by_select_with_input_key_matching(dut):
 
         assert tester.hit.value == 1, f"Expected hit signal to be 1 for select operation with matching index, but got {tester.hit.value}."
         assert tester.value_out.value == (i + 1) * 2, f"Expected value_out {(i + 1) * 2} for select operation with matching index, but got {tester.value_out.value}."
+
+@cocotb.test()
+async def test_reading_cell_by_select_with_input_key_not_matching(dut):
+    """Test: check if we can read the value of a cell by its key"""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Schreiben von mehreren Einträgen
+    num_entries = tester.dut.NUM_ENTRIES.value
+    for i in range(num_entries):
+        key = i + 1  # Schlüssel im Bereich der Adressierung
+        value = (i + 1) * 2  # Wert im Bereich der Wertbreite
+        await tester.write(i, key, value)
+
+    await RisingEdge(tester.clk)
+    # Lesen der Zelle über key
+    dut.index_in.value = 0  # Index auf die erste Zelle setzen
+    dut.key_in.value = 15  # Schlüssel setzen, der mit keinem Eintrag übereinstimmt
+    dut.select_by_index.value = 0  # Read-Operation aktivieren
+    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+    await ReadOnly()
+
+    assert tester.hit.value == 0, f"Expected hit signal to be 0 for select operation with non-matching index, but got {tester.hit.value}."
+    assert tester.value_out.value == 0, f"Expected value_out 0 for select operation with non-matching index, but got {tester.value_out.value}."
+
+
+@cocotb.test()
+async def test_deleting_entry(dut):
+    """Test: check if we can delete an entry and that it is properly deleted."""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Schreiben von mehreren Einträgen
+    num_entries = int(tester.dut.NUM_ENTRIES.value)
+    for i in range(num_entries):
+        key = i + 1  # Schlüssel im Bereich der Adressierung
+        value = (i + 1) * 2  # Wert im Bereich der Wertbreite
+        await tester.write(i, key, value)
+
+    # Löschen des Eintrags an Index 0
+    await RisingEdge(tester.clk)
+    tester.index_in.value = 1 << 0  # Index auf die erste Zelle setzen
+    tester.delete_op.value = 1  # Delete-Operation aktivieren
+    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+
+    # Überprüfen, dass der Eintrag gelöscht wurde
+    assert await tester.get_used_entries() == num_entries - 1, f"Expected {num_entries - 1} used entries after deletion, but got {await tester.get_used_entries()}."
+
+    value_after_delete = await tester.get_cell_value_by_index(0)
+    assert value_after_delete == 0, f"Expected value 0 in cell after deletion, but got {hex(value_after_delete)}."
+    assert tester.hit.value == 0, f"Expected hit signal to be 0 after deletion, but got {tester.hit.value}."
+
+
+@cocotb.test()
+async def test_deleting_all_entries(dut):
+    """Test: check if we can delete all entries and that they are properly deleted."""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Schreiben von mehreren Einträgen
+    num_entries = int(tester.dut.NUM_ENTRIES.value)
+    for i in range(num_entries):
+        key = i + 1  # Schlüssel im Bereich der Adressierung
+        value = (i + 1) * 2  # Wert im Bereich der Wertbreite
+        await tester.write(i, key, value)
+
+    # Löschen aller Einträge
+    for i in range(num_entries):
+        await RisingEdge(tester.clk)
+        tester.index_in.value = 1 << i  # Index auf die Zelle setzen
+        tester.delete_op.value = 1  # Delete-Operation aktivieren
+        await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+
+    # Überprüfen, dass alle Einträge gelöscht wurden
+    assert await tester.get_used_entries() == 0, f"Expected 0 used entries after deleting all entries, but got {await tester.get_used_entries()}."
+
+    for i in range(num_entries):
+        value_after_delete = await tester.get_cell_value_by_index(i)
+        assert value_after_delete == 0, f"Expected value 0 in cell {i} after deletion, but got {hex(value_after_delete)}."
+        assert tester.hit.value == 0, f"Expected hit signal to be 0 after deletion of cell {i}, but got {tester.hit.value}."
+
+
+@cocotb.test()
+async def test_overwriting_entry(dut):
+    """Test: check if we can overwrite an existing entry and that the new value is properly stored."""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Schreiben eines Eintrags
+    key = 1  # Schlüssel im Bereich der Adressierung
+    value = 2  # Wert im Bereich der Wertbreite
+    await tester.write(0, key, value)
+
+    # Überschreiben des Eintrags an Index 0
+    new_key = 3
+    new_value = 6
+    await tester.write(0, new_key, new_value)
+
+    all_cells = await tester.get_all_cells()
+
+    print(f"Cells after overwriting: {all_cells}")
+
+    await ReadOnly()
+    # Überprüfen, dass der Eintrag überschrieben wurde
+    assert await tester.get_used_entries() == 1, f"Expected 1 used entry after overwriting, but got {await tester.get_used_entries()}."
+
+    value_after_overwrite = await tester.get_cell_value_by_index(0)
+    assert value_after_overwrite == new_value, f"Expected value {new_value} in cell after overwriting, but got {hex(value_after_overwrite)}."
+    assert tester.hit.value == 1, f"Expected hit signal to be 1 after overwriting, but got {tester.hit.value}."
+
+@cocotb.test()
+async def test_writing_until_full(dut):
+    """Test: check if we can write entries until the memory block is full and that it correctly reflects the full state."""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    # 1. Reset
+    await tester.reset()
+
+    # 2. Schreiben von Einträgen bis zum Maximum
+    num_entries = int(tester.dut.NUM_ENTRIES.value)
+    for i in range(num_entries):
+        key = i + 1  # Schlüssel im Bereich der Adressierung
+        value = (i + 1) * 2  # Wert im Bereich der Wertbreite
+        await tester.write(i, key, value)
+
+        await ReadOnly()  
+        used_entries = await tester.get_used_entries()
+        assert used_entries == i + 1, f"Expected {i + 1} used entries after writing {i + 1} entries, but got {used_entries}."
+
+@cocotb.test()
+async def test_persistence_of_entries(dut):
+    """Test: check if entries persist correctly across multiple write and delete operations."""
+
+    tester = MemoryBlockTester(dut)
+    
+    # Start clock
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+
+    await tester.reset()
+
+    # 2. Schreiben von mehreren Einträgen
+    num_entries = int(tester.dut.NUM_ENTRIES.value)
+    for i in range(num_entries):
+        key = i + 1  # Schlüssel im Bereich der Adressierung
+        value = (i + 1) * 2  # Wert im Bereich der Wertbreite
+        await tester.write(i, key, value)
+
+    # Löschen eines Eintrags und Überprüfen der Persistenz der anderen Einträge
+    await RisingEdge(tester.clk)
+    tester.index_in.value = 1 << 0  # Index auf die erste Zelle setzen
+    tester.delete_op.value = 1  # Delete-Operation aktivieren
+    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+
+    tester.delete_op.value = 0  # Delete-Operation beenden
+    await ReadOnly()
+    await FallingEdge(tester.clk)
+
+    assert await tester.get_used_entries() == num_entries - 1, f"Expected {num_entries - 1} used entries after deletion, but got {await tester.get_used_entries()}."
+
+    # simulate multiple clock cycles
+    for _ in range(5):
+        await RisingEdge(tester.clk)
+
+    for i in range(1, num_entries):  # Überprüfen der verbleibenden Einträge (Index 1 bis num_entries-1)
+        value_after_delete = await tester.get_cell_value_by_index(i)
+        expected_value = (i + 1) * 2
+        assert value_after_delete == expected_value, f"Expected value {expected_value} in cell {i} after deletion of cell 0, but got {hex(value_after_delete)}."
+        assert tester.hit.value == 1, f"Expected hit signal to be 1 for cell {i} after deletion of cell 0, but got {tester.hit.value}."
 
 
 def test_memory_block_runner():
