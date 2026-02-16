@@ -1,4 +1,4 @@
-module controller import ctrl_types_pkg::* #(
+module controller #(
     parameter NUM_ENTRIES = 16
 )(
     input logic clk,
@@ -6,7 +6,7 @@ module controller import ctrl_types_pkg::* #(
     input logic [NUM_ENTRIES-1:0] used,
     input logic [NUM_ENTRIES-1:0] idx_in,
     input logic hit,
-    input operation_e operation_in,
+    input ctrl_types_pkg::operation_e operation_in,
     
     output logic [NUM_ENTRIES-1:0] idx_out,
     output logic write_out,
@@ -15,6 +15,8 @@ module controller import ctrl_types_pkg::* #(
     output logic rdy_out,
     output logic op_succ
 );
+    import ctrl_types_pkg::*;
+
     top_state_e state, next_state;
 
     // enable and enter for upsert operation
@@ -35,33 +37,55 @@ module controller import ctrl_types_pkg::* #(
     // Command status signals
     sub_cmd_t upsert_cmd, get_cmd, del_cmd;
 
+    // Unpack struct members for Icarus Verilog compatibility
+    logic upsert_done, upsert_error;
+    logic get_done, get_error;
+    logic del_done, del_error;
+
+    assign upsert_done = upsert_cmd.done;
+    assign upsert_error = upsert_cmd.error;
+    assign get_done = get_cmd.done;
+    assign get_error = get_cmd.error;
+    assign del_done = del_cmd.done;
+    assign del_error = del_cmd.error;
+
+    // UPSERT FSM memory-facing signals
+    logic upsert_select_out;
+    logic upsert_write_out;
+    logic [NUM_ENTRIES-1:0] upsert_idx_out;
+    logic upsert_rdy_out;
+    logic upsert_op_succ;
+
+    // DELETE FSM memory-facing signals
+    logic delete_delete_out;
+    logic [NUM_ENTRIES-1:0] delete_idx_out;
+
+    // GET FSM memory-facing signals
+    logic get_rdy_out;
+    logic get_op_succ;
+
     get_fsm get_fsm_inst (
         .clk(clk),
         .rst_n(rst_n),
         .en(get_en),
         .enter(get_enter),
-        .cmd(get_cmd)
+        .hit(hit),
+        .cmd(get_cmd),
+        .rdy_out(get_rdy_out),
+        .op_succ(get_op_succ)
     );
-
-
-    // Delete FSM memory-facing signals
-    logic        del_select_out;
-    logic        del_write_out;
-    logic [NUM_ENTRIES-1:0] del_idx_out;
 
     del_fsm #(.NUM_ENTRIES(NUM_ENTRIES)) del_fsm_inst (
         .clk(clk),
         .rst_n(rst_n),
         .en(del_en),
         .enter(del_enter),
-        .hit(/* connect to memory hit */),
-        .hit_idx(/* connect to memory idx_out */),
-        .select_out(del_select_out),
-        .write_out(del_write_out),
-        .idx_out(del_idx_out),
+        .hit(hit),
+        .delete_out(delete_delete_out),
+        .idx_out(delete_idx_out),
+        .idx_in(idx_in),
         .cmd(del_cmd)
         );
-
 
     upsert_fsm #(
         .NUM_ENTRIES(NUM_ENTRIES)
@@ -70,19 +94,26 @@ module controller import ctrl_types_pkg::* #(
         .rst_n(rst_n),
         .en(upsert_en),
         .enter(upsert_enter),
-        .select_out(select_out),
-        .write_out(write_out),
-        .idx_out(idx_out),
+        .select_out(upsert_select_out),
+        .write_out(upsert_write_out),
+        .idx_out(upsert_idx_out),
         .idx_in(idx_in),
         .hit(hit),
         .used(used),
-        .rdy_out(rdy_out),
-        .op_succ(op_succ),
+        .rdy_out(upsert_rdy_out),
+        .op_succ(upsert_op_succ),
         .cmd(upsert_cmd)
     );
 
     always_comb begin : control_logic
         next_state = state;
+
+        select_out = 1'b0;
+        write_out = 1'b0;
+        idx_out = '0;
+        rdy_out = 1'b0;
+        op_succ = 1'b0;
+        delete_out = 1'b0;
 
         case (state)
             ST_IDLE: begin 
@@ -102,16 +133,27 @@ module controller import ctrl_types_pkg::* #(
                 endcase
             end
             ST_GET: begin
-                if (get_cmd.error) next_state = ST_ERR;
-                else if (get_cmd.done) next_state = ST_IDLE;
+                rdy_out = get_rdy_out;
+                op_succ = get_op_succ;
+                if (get_error) next_state = ST_ERR;
+                else if (get_done) next_state = ST_IDLE;
             end
             ST_UPSERT: begin
-                if (upsert_cmd.error) next_state = ST_ERR;
-                else if (upsert_cmd.done) next_state = ST_IDLE;
+                select_out = upsert_select_out;
+                write_out = upsert_write_out;
+                idx_out = upsert_idx_out;
+                rdy_out = upsert_rdy_out;
+                op_succ = upsert_op_succ;
+
+                if (upsert_error) next_state = ST_ERR;
+                else if (upsert_done) next_state = ST_IDLE;
             end
             ST_DEL: begin
-                if (del_cmd.error) next_state = ST_ERR;
-                else if (del_cmd.done) next_state = ST_IDLE;
+                delete_out = delete_delete_out;
+                idx_out = delete_idx_out;
+
+                if (del_error) next_state = ST_ERR;
+                else if (del_done) next_state = ST_IDLE;
             end
             ST_ERR: begin
                 // Error recovery logic if needed

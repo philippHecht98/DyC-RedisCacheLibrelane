@@ -904,4 +904,4 @@ def test_del_fsm_runner():
     )
 
 if __name__ == "__main__":
-    test_del_fsm_runner();
+    test_del_fsm_runner()
