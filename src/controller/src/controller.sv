@@ -1,4 +1,4 @@
-module controller import ctrl_types_pkg::* #(
+module controller #(
     parameter NUM_ENTRIES = 16
 )(
     input logic clk,
@@ -6,7 +6,7 @@ module controller import ctrl_types_pkg::* #(
     input logic [NUM_ENTRIES-1:0] used,
     input logic [NUM_ENTRIES-1:0] idx_in,
     input logic hit,
-    input operation_e operation_in,
+    input ctrl_types_pkg::operation_e operation_in,
     
     output logic [NUM_ENTRIES-1:0] idx_out,
     output logic write_out,
@@ -15,6 +15,8 @@ module controller import ctrl_types_pkg::* #(
     output logic rdy_out,
     output logic op_succ
 );
+    import ctrl_types_pkg::*;
+
     top_state_e state, next_state;
 
     // enable and enter for upsert operation
@@ -34,6 +36,13 @@ module controller import ctrl_types_pkg::* #(
 
     // Command status signals
     sub_cmd_t upsert_cmd, get_cmd, del_cmd;
+
+    // Internal signals for upsert_fsm outputs
+    logic internal_select_out;
+    logic internal_write_out;
+    logic [NUM_ENTRIES-1:0] internal_idx_out;
+    logic internal_rdy_out;
+    logic internal_op_succ;
 
     get_fsm get_fsm_inst (
         .clk(clk),
@@ -70,19 +79,25 @@ module controller import ctrl_types_pkg::* #(
         .rst_n(rst_n),
         .en(upsert_en),
         .enter(upsert_enter),
-        .select_out(select_out),
-        .write_out(write_out),
-        .idx_out(idx_out),
+        .select_out(internal_select_out),
+        .write_out(internal_write_out),
+        .idx_out(internal_idx_out),
         .idx_in(idx_in),
         .hit(hit),
         .used(used),
-        .rdy_out(rdy_out),
-        .op_succ(op_succ),
+        .rdy_out(internal_rdy_out),
+        .op_succ(internal_op_succ),
         .cmd(upsert_cmd)
     );
 
     always_comb begin : control_logic
         next_state = state;
+
+        select_out = 1'b0;
+        write_out = 1'b0;
+        idx_out = '0;
+        rdy_out = 1'b0;
+        op_succ = 1'b0;
 
         case (state)
             ST_IDLE: begin 
@@ -106,6 +121,12 @@ module controller import ctrl_types_pkg::* #(
                 else if (get_cmd.done) next_state = ST_IDLE;
             end
             ST_UPSERT: begin
+                select_out = internal_select_out;
+                write_out = internal_write_out;
+                idx_out = internal_idx_out;
+                rdy_out = internal_rdy_out;
+                op_succ = internal_op_succ;
+
                 if (upsert_cmd.error) next_state = ST_ERR;
                 else if (upsert_cmd.done) next_state = ST_IDLE;
             end
