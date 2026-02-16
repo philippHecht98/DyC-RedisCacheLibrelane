@@ -5,7 +5,6 @@ module dynamic_register_array #(
     input wire clk,
     input wire rst_n,
     input wire write_op,
-    input wire select_op,
     input wire [LENGTH-1:0] data_in,
     output wire [LENGTH-1:0] data_out
 );
