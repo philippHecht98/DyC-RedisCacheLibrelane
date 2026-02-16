@@ -1,8 +1,7 @@
 module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     parameter KEY_WIDTH = 16,
     parameter VALUE_WIDTH = 64,
-    parameter ARCHITECTURE = 32,
-    parameter NUM_ENTRIES = 16
+    parameter ARCHITECTURE = 32
 ) (
     // AXI4-Lite Slave Interface
     input  logic        clk,
@@ -43,7 +42,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 
     // From controller / memory
     input  logic [VALUE_WIDTH-1:0]  result_value_in,
-    input  logic [NUM_ENTRIES-1:0]  result_index_in,
     input  logic                    hit_in,
     input  logic                    done_in
 );
@@ -62,8 +60,7 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     localparam ADDR_VAL_BASE = 2;                              // value_regs[0..N-1]
     localparam ADDR_STATUS   = ADDR_VAL_BASE + NUM_VAL_REGS;   // status (read-only)
     localparam ADDR_RES_BASE = ADDR_STATUS + 1;                 // result_regs[0..N-1]
-    localparam ADDR_RES_IDX  = ADDR_RES_BASE + NUM_VAL_REGS;   // result index
-    localparam NUM_REGS      = ADDR_RES_IDX + 1;
+    localparam NUM_REGS      = ADDR_RES_BASE + NUM_VAL_REGS;
     localparam REG_ADDR_BITS = $clog2(NUM_REGS) > 0 ? $clog2(NUM_REGS) : 1;
 
     // =========================================================================
@@ -76,7 +73,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     //  2..N+1      | 0x08.. | value_regs[0..N-1] | W   | Value (ARCH bits each)
     //  N+2         | ...    | status_reg         | R   | {state, error, hit, done}
     //  N+3..2N+2   | ...    | result_regs[0..N-1]| R   | Result value chunks
-    //  2N+3        | ...    | result_index_reg   | R   | Matching index
     // =========================================================================
 
     // --- CPU-writable registers ---
@@ -91,7 +87,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
     if_state_e               fsm_state;
 
     logic [ARCHITECTURE-1:0] result_regs [NUM_VAL_REGS];
-    logic [ARCHITECTURE-1:0] result_index_reg;
 
     // --- Compose the status register from individual fields ---
     logic [ARCHITECTURE-1:0] status_reg;
@@ -212,8 +207,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
                     s_axi_rdata <= key_reg;
                 end else if (rd_addr_idx == ADDR_STATUS[REG_ADDR_BITS-1:0]) begin
                     s_axi_rdata <= status_reg;
-                end else if (rd_addr_idx == ADDR_RES_IDX[REG_ADDR_BITS-1:0]) begin
-                    s_axi_rdata <= result_index_reg;
                 end else begin
                     // Check value and result register ranges
                     for (int i = 0; i < NUM_VAL_REGS; i++) begin
@@ -244,7 +237,6 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
             status_done      <= '0;
             status_hit       <= '0;
             status_error     <= '0;
-            result_index_reg <= '0;
             for (int i = 0; i < NUM_VAL_REGS; i++)
                 result_regs[i] <= '0;
         end else begin
@@ -277,15 +269,31 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
                     start_out <= '0;
                     if (done_in) begin
                         // Latch result value into result_regs[0..N-1]
-                        for (int i = 0; i < NUM_VAL_REGS; i++) begin
-                            if ((i + 1) * ARCHITECTURE <= VALUE_WIDTH)
-                                result_regs[i] <= result_value_in[i*ARCHITECTURE +: ARCHITECTURE];
+                        // Use explicit indexing to avoid dynamic part-select issues
+                        if (NUM_VAL_REGS == 1) begin
+                            result_regs[0] <= result_value_in[ARCHITECTURE-1:0];
+                        end else if (NUM_VAL_REGS == 2) begin
+                            result_regs[0] <= result_value_in[ARCHITECTURE-1:0];
+                            if (VALUE_WIDTH > ARCHITECTURE)
+                                result_regs[1] <= result_value_in[VALUE_WIDTH-1:ARCHITECTURE];
                             else
-                                result_regs[i] <= {{(ARCHITECTURE - (VALUE_WIDTH - i*ARCHITECTURE)){1'b0}},
-                                                    result_value_in[VALUE_WIDTH-1 : i*ARCHITECTURE]};
+                                result_regs[1] <= '0;
+                        end else if (NUM_VAL_REGS == 3) begin
+                            result_regs[0] <= result_value_in[ARCHITECTURE-1:0];
+                            result_regs[1] <= result_value_in[2*ARCHITECTURE-1:ARCHITECTURE];
+                            if (VALUE_WIDTH > 2*ARCHITECTURE)
+                                result_regs[2] <= result_value_in[VALUE_WIDTH-1:2*ARCHITECTURE];
+                            else
+                                result_regs[2] <= '0;
+                        end else begin // NUM_VAL_REGS >= 4
+                            result_regs[0] <= result_value_in[ARCHITECTURE-1:0];
+                            result_regs[1] <= result_value_in[2*ARCHITECTURE-1:ARCHITECTURE];
+                            result_regs[2] <= result_value_in[3*ARCHITECTURE-1:2*ARCHITECTURE];
+                            if (VALUE_WIDTH > 3*ARCHITECTURE)
+                                result_regs[3] <= result_value_in[VALUE_WIDTH-1:3*ARCHITECTURE];
+                            else
+                                result_regs[3] <= '0;
                         end
-                        result_index_reg <= {{(ARCHITECTURE - NUM_ENTRIES){1'b0}},
-                                             result_index_in};
                         status_hit       <= hit_in;
                         status_done      <= 1'b1;
                         fsm_state        <= IF_ST_COMPLETE;
