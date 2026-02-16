@@ -71,7 +71,8 @@ async def test_write_simple(dut):
     dut._log.info(f"Writing value: {hex(test_value)}...")
     await tester.write(test_value)
 
-    await ReadOnly() 
+    await ReadOnly()
+
     assert dut.data_out.value == test_value, \
         f"Write failed! Expected {hex(test_value)}, got {hex(dut.data_out.value)}"
 
