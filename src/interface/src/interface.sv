@@ -193,11 +193,13 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
             s_axi_rdata   <= '0;
             s_axi_rresp   <= 2'b00;
         end else begin
-            // Accept read address
+            
+            // Accept read address (single-cycle handshake when both valid)
             s_axi_arready <= s_axi_arvalid && !s_axi_arready;
 
-            // Return data based on address
-            if (s_axi_arvalid && s_axi_arready) begin
+            // Return data based on address when AR handshake occurs
+            // Only set rvalid if not already handling a read transaction
+            if (s_axi_arvalid && s_axi_arready && !s_axi_rvalid) begin
                 // Default
                 s_axi_rdata <= '0;
 
@@ -219,11 +221,11 @@ module cache_interface import if_types_pkg::*; import ctrl_types_pkg::*; #(
 
                 s_axi_rvalid <= 1'b1;
                 s_axi_rresp  <= 2'b00;  // OKAY
-            end
-
-            // Complete read handshake
-            if (s_axi_rready && s_axi_rvalid)
+            end 
+            // Complete read data handshake - clear rvalid only when handshake completes
+            else if (s_axi_rready && s_axi_rvalid) begin
                 s_axi_rvalid <= 1'b0;
+            end
         end
     end
 
