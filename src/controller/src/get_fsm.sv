@@ -1,20 +1,38 @@
-module get_fsm import ctrl_types_pkg::* (
+module get_fsm (
+    // management inputs
     input logic clk,
     input logic rst_n,
 
     input logic en,
     input logic enter,
 
-    output sub_cmd_t cmd
+    // logic inputs
+    input logic hit,
+
+    // management outputs
+    output ctrl_types_pkg::sub_cmd_t cmd,
+
+    // logic outputs
+    output logic rdy_out,
+    output logic op_succ
 );
-    get_state_e state, next_state;
+    import ctrl_types_pkg::*;
+
+    get_substate_e state, next_state;
 
     always_comb begin : control_logic
         next_state = state;
+        cmd = '0;
+        rdy_out = '0;
+        op_succ = '0;
 
         case (state)
-            // Define state transitions based on the get operation's substates and command status
-            // This is a placeholder and should be replaced with actual logic based on the get operation's requirements
+            GET_ST_START: begin
+                rdy_out = hit;
+                op_succ = 1'b1;
+
+                cmd.done = 1'b1;
+            end
             default: begin
                 next_state = state; // Stay in the current state by default
             end
