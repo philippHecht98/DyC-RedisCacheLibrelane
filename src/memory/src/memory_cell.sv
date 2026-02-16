@@ -15,14 +15,14 @@ module memory_cell #(
     input logic clk,
     input logic rst_n,
     
-    // Write interface
+    // input interface of single cell
     input logic write_op,
     input logic [KEY_WIDTH-1:0] key_in,
     input logic [VALUE_WIDTH-1:0] value_in,
     //input logic [TTL_WIDTH-1:0] ttl_in,
-    
-    // Read interface
-    input logic read_op,
+
+
+    // output interface of single cell    
     output logic [KEY_WIDTH-1:0] key_out,
     output logic [VALUE_WIDTH-1:0] value_out,
     output logic used_out // Indicates if the cell is currently used (valid)
@@ -33,7 +33,6 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
-        .select_op(read_op),
         .data_in(key_in),
         .data_out(key_out)
     );
@@ -42,19 +41,17 @@ module memory_cell #(
         .clk(clk),
         .rst_n(rst_n),
         .write_op(write_op),
-        .select_op(read_op),
         .data_in(value_in),
         .data_out(value_out)
     );
 
-    dynamic_register_array #(.LENGTH(1)) used_reg (
-        .clk(clk),
-        .rst_n(rst_n),
-        .write_op(write_op),
-        .select_op(read_op),
-        .data_in(in_use),
-        .data_out(used_out) 
-    );
+    // dynamic_register_array #(.LENGTH(1)) used_reg (
+    //     .clk(clk),
+    //     .rst_n(rst_n),
+    //     .write_op(write_op),
+    //     .data_in(in_use),
+    //     .data_out(used_out) 
+    // );
 
     //dynamic_register_array #(.LENGTH(TTL_WIDTH)) ttl_reg (
     //    .clk(clk),
@@ -65,6 +62,6 @@ module memory_cell #(
     //    .data_out(ttl_out)
     //);
 
-    assign in_use = (key_out != '0);
+    assign used_out = (key_out != '0);
 
 endmodule

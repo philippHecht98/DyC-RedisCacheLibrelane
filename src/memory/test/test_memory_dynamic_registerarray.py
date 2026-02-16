@@ -71,7 +71,8 @@ async def test_write_simple(dut):
     dut._log.info(f"Writing value: {hex(test_value)}...")
     await tester.write(test_value)
 
-    await ReadOnly() 
+    await ReadOnly()
+
     assert dut.data_out.value == test_value, \
         f"Write failed! Expected {hex(test_value)}, got {hex(dut.data_out.value)}"
 
@@ -210,7 +211,7 @@ async def test_data_retention_after_write(dut):
     assert dut.data_out.value == test_value, \
         f"Data retention failed! Expected {hex(test_value)}, got {hex(dut.data_out.value)}"
 
-
+@cocotb.test()
 async def test_write_zero_to_filled_register(dut):
     """Test: Schreiben von 0 in ein bereits gefülltes Register."""
     
