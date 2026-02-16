@@ -24,13 +24,14 @@ module upsert_fsm #(
 
     always_comb begin : control_logic
         next_state = state;
-        cmd.done = 1'b0;
-        cmd.error = 1'b0;
+        
         select_out = 1'b0;
         write_out = 1'b0;
         idx_out = '0;
         rdy_out = 1'b0;
         op_succ = 1'b0;
+        cmd.done = 1'b0;
+        cmd.error = 1'b0;
 
 
         case (state)
@@ -42,8 +43,9 @@ module upsert_fsm #(
 
                 if (hit) begin
                     // key exists
-                    idx_out = idx_in;
+                    select_out = 1'b1;
                     write_out = 1'b1;
+                    idx_out = idx_in;
                     rdy_out = 1'b1;
                     op_succ = 1'b1;
                     cmd.done = 1'b1;
@@ -57,6 +59,7 @@ module upsert_fsm #(
                             idx_out[j] = 1'b1;
                         end
                     end
+                    select_out = 1'b0;
                     write_out = 1'b1;
                     rdy_out = 1'b1;
                     op_succ = 1'b1;
@@ -65,8 +68,10 @@ module upsert_fsm #(
 
                 end else begin
                     // key doesnt exist and no free space
+                    select_out = 1'b0;
+                    write_out = 1'b0;
                     rdy_out = 1'b0;
-                    op_succ = 1'b0;
+                    op_succ = 1'b1;
                     cmd.done = 1'b1;
                     cmd.error = 1'b1;
                 end

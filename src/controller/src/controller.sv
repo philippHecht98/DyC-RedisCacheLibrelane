@@ -13,7 +13,7 @@ module controller import ctrl_types_pkg::* #(
     output logic select_out,
     output logic delete_out,
     output logic rdy_out,
-    output logic op_succ,
+    output logic op_succ
 );
     top_state_e state, next_state;
 
@@ -43,22 +43,6 @@ module controller import ctrl_types_pkg::* #(
         .cmd(get_cmd)
     );
 
-    upsert_fsm #(
-        .NUM_ENTRIES(NUM_ENTRIES)
-    ) upsert_fsm_inst (
-        .clk(clk),
-        .rst_n(rst_n),
-        .en(upsert_en),
-        .enter(upsert_enter),
-        .select_out(select_out),
-        .write_out(write_out),
-        .idx_out(idx_out),
-        .idx_in(idx_in),
-        .hit(hit),
-        .used(used),
-        .rdy_out(rdy_out),
-        .op_succ(op_succ),
-        .cmd(upsert_cmd)
 
     // Delete FSM memory-facing signals
     logic        del_select_out;
@@ -76,6 +60,25 @@ module controller import ctrl_types_pkg::* #(
         .write_out(del_write_out),
         .idx_out(del_idx_out),
         .cmd(del_cmd)
+        );
+
+
+    upsert_fsm #(
+        .NUM_ENTRIES(NUM_ENTRIES)
+    ) upsert_fsm_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .en(upsert_en),
+        .enter(upsert_enter),
+        .select_out(select_out),
+        .write_out(write_out),
+        .idx_out(idx_out),
+        .idx_in(idx_in),
+        .hit(hit),
+        .used(used),
+        .rdy_out(rdy_out),
+        .op_succ(op_succ),
+        .cmd(upsert_cmd)
     );
 
     always_comb begin : control_logic
