@@ -3,8 +3,7 @@ package ctrl_types_pkg;
     typedef enum logic [2:0] {
         ST_IDLE,
         ST_GET,
-        ST_SET,
-        ST_PUT,
+        ST_UPSERT,
         ST_DEL,
         ST_ERR
     } top_state_e;
@@ -12,15 +11,13 @@ package ctrl_types_pkg;
     typedef enum logic [2:0] {
         NOOP = 3'b000,
         READ = 3'b001,
-        CREATE = 3'b010,
-        UPDATE = 3'b011,
-        DELETE = 3'b100
+        UPSERT = 3'b010,
+        DELETE = 3'b011
     } operation_e;
 
     // Update the substate enums to reflect actual substates for each operation
-    typedef enum logic [1:0] { PUT_ST_START, SOMETHING_PUT, ELSE_PUT } put_substate_e;
-    typedef enum logic [1:0] { GET_ST_START, SOMETHING_GET, ELSE_GET } get_substate_e;
-    typedef enum logic [1:0] { SET_ST_START, SOMETHING_SET, ELSE_SET } set_substate_e;
+    typedef enum logic [1:0] { UPSERT_ST_START} put_substate_e;
+    typedef enum logic [1:0] { GET_ST_START, GET_ST_SOMETHING, GET_ST_ELSE } get_substate_e;
     typedef enum logic [1:0] { DEL_ST_START, DEL_ST_DELETE, DEL_ST_ERROR } del_substate_e;
 
     typedef struct packed {
