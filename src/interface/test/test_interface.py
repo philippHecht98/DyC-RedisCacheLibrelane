@@ -102,50 +102,6 @@ class OBIInterfaceTester:
         self.err_to_r_chan = dut.err_to_r_chan
 
 
-    def pack_obi_req(self, req, addr, we, be, wdata, aid):
-        """
-        Pack OBI request struct fields into a 74-bit value.
-        
-        Args:
-            req: Request valid (1 bit)
-            addr: Address (32 bits)
-            we: Write enable (1 bit)
-            be: Byte enable (4 bits)
-            wdata: Write data (32 bits)
-            aid: Transaction ID (3 bits)
-        
-        Returns:
-            74-bit packed value
-        """
-        # Build from LSB to MSB
-        packed = 0
-        packed |= (req & 0x1)                    # bit [0]
-        packed |= (0 & 0x1) << 1                 # a_optional [1]
-        packed |= (aid & 0x7) << 2               # aid[2:0] [4:2]
-        packed |= (wdata & 0xFFFFFFFF) << 5      # wdata[31:0] [36:5]
-        packed |= (be & 0xF) << 37               # be[3:0] [40:37]
-        packed |= (we & 0x1) << 41               # we [41]
-        packed |= (addr & 0xFFFFFFFF) << 42      # addr[31:0] [73:42]
-        return packed
-    
-    def unpack_obi_rsp(self, rsp_value):
-        """
-        Unpack OBI response struct from a 39-bit value.
-        
-        Args:
-            rsp_value: 39-bit packed response value
-        
-        Returns:
-            Tuple of (rvalid, gnt, rdata, rid, err)
-        """
-        rsp = int(rsp_value)
-        rvalid = (rsp >> 0) & 0x1                # bit [0]
-        gnt = (rsp >> 1) & 0x1                   # bit [1]
-        # r_optional at bit [2] - ignored
-        err = (rsp >> 3) & 0x1                   # bit [3]
-        rid = (rsp >> 4) & 0x7                   # bits [6:4]
-        rdata = (rsp >> 7) & 0xFFFFFFFF          # bits [38:7]
-        return (rvalid, gnt, rdata, rid, err)
     async def reset(self):
         """Apply reset pulse to the DUT."""
         self.rst_n.value = 0
