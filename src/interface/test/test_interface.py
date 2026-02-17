@@ -1133,8 +1133,7 @@ def test_interface_runner():
     ]
 
     params = {
-        "KEY_WIDTH": 16,
-        "VALUE_WIDTH": 64,
+        "ARCHITECTURE": "32",
     }
 
     runner = get_runner(sim)
@@ -1142,7 +1141,7 @@ def test_interface_runner():
     # Build with testbench
     runner.build(
         sources=sources,
-        hdl_toplevel="cache_interface",
+        hdl_toplevel="obi_cache_interface",
         always=True, 
         waves=True,
         timescale=("1ns", "1ps"), 
@@ -1151,7 +1150,7 @@ def test_interface_runner():
 
     # Run tests
     runner.test(
-        hdl_toplevel="cache_interface", 
+        hdl_toplevel="obi_cache_interface", 
         test_module="test_interface",
         waves=True
     )

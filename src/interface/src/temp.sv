@@ -13,14 +13,15 @@ module obi_cache_interface #(
 
     // Outgoing wires to master
     output croc_pkg::obi_response_t obi_resp,
-    output logic gnt // Grant signal to master indicating interface is ready to accept request
+    output logic gnt, // Grant signal to master indicating interface is ready to accept request
 
 
 
     /*   Controller interface signals   */
-    
-    
-)
+    output ctrl_types_pkg::operation_e operation_out,
+    input logic ready_in,
+    input logic op_succ_in
+);
 
     import if_types_pkg::*;
     import croc_pkg::*;
@@ -62,11 +63,11 @@ module obi_cache_interface #(
         case (state)
             /*
                 In the idle state, we wait for a valid request from the master
-                When obi_master_valid is set to 1 the cpu marks the current
+                When obi_master_request is set to 1 the cpu marks the current
                 data in the interface as valid and ready to be processed by the controller
             */
             IF_ST_IDLE: begin
-                if (obi_req.obi_master_valid) begin
+                if (obi_req.obi_master_request) begin
                     next_state = IF_ST_EXECUTE;
                     gnt = 1'b1;
                 end
