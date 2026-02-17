@@ -7,6 +7,3 @@
 [submodule "riscv"]
 	path = riscv
 	url = https://github.com/ultraembedded/riscv.git
-[submodule "src/interface/croc"]
-	path = src/interface/croc
-	url = https://github.com/pulp-platform/croc.git
