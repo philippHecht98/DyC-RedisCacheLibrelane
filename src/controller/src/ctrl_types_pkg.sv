@@ -9,10 +9,10 @@ package ctrl_types_pkg;
     } top_state_e;
 
     typedef enum logic [2:0] {
-        NOOP = 3'b000,
-        READ = 3'b001,
-        UPSERT = 3'b010,
-        DELETE = 3'b011
+        NOOP    = 3'b000,
+        READ    = 3'b001,
+        UPSERT  = 3'b010,
+        DELETE  = 3'b011
     } operation_e;
 
     // Update the substate enums to reflect actual substates for each operation

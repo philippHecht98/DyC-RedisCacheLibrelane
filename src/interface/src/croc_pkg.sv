@@ -5,7 +5,7 @@ package croc_pkg;
     // =========================================================================
     // Parameter definitions
     // =========================================================================
-    parameter ARCHITECTURE = 64;  // Data bus width in bits (e.g., 32 or 64)
+    parameter ARCHITECTURE = 32;  // Data bus width in bits (e.g., 32 or 64)
 
     localparam KEY_WIDTH = ARCHITECTURE; // Key width matches architecture for simplicity
     localparam VALUE_WIDTH = 2 * ARCHITECTURE; // Value width is double the architecture for larger cache lines
