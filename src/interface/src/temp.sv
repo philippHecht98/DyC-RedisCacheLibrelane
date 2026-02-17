@@ -189,7 +189,7 @@ module obi_cache_interface #(
         end
     end
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(negedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rdata_from_controller <= '0;
             err_from_controller <= 1'b0;
