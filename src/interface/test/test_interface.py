@@ -1,6 +1,6 @@
 """
-Cocotb testbench for the AXI4-Lite Cache Interface module.
-Tests AXI protocol compliance, FSM state transitions, and controller integration.
+Cocotb testbench for the OBI Cache Interface module.
+Tests OBI protocol compliance, FSM state transitions, and controller integration.
 """
 
 import os
@@ -15,10 +15,31 @@ from cocotb_tools.runner import get_runner
 os.environ['COCOTB_ANSI_OUTPUT'] = '1'
 
 
-class AXIInterfaceTester:
+class OBIInterfaceTester:
     """
-    Helper class for testing the AXI4-Lite cache interface.
-    Provides methods for AXI transactions and checking interface state.
+    Helper class for testing the OBI cache interface.
+    Provides methods for OBI transactions and checking interface state.
+    
+    OBI structs are accessed as packed values. Bit positions:
+    
+    sbr_obi_req_t (74 bits):
+      [73:1] - a channel (sbr_obi_a_chan_t)
+        [73:42] - addr[31:0]
+        [41]    - we
+        [40:37] - be[3:0]
+        [36:5]  - wdata[31:0]
+        [4:2]   - aid[2:0]
+        [1]     - a_optional
+      [0]    - req
+    
+    sbr_obi_rsp_t (39 bits):
+      [38:2] - r channel (sbr_obi_r_chan_t)
+        [38:7] - rdata[31:0]
+        [6:4]  - rid[2:0]
+        [3]    - err
+        [2]    - r_optional
+      [1]    - gnt
+      [0]    - rvalid
     """
 
     def __init__(self, dut):
@@ -26,31 +47,9 @@ class AXIInterfaceTester:
         self.clk = dut.clk
         self.rst_n = dut.rst_n
         
-        # AXI Write Address Channel
-        self.s_axi_awaddr = dut.s_axi_awaddr
-        self.s_axi_awvalid = dut.s_axi_awvalid
-        self.s_axi_awready = dut.s_axi_awready
-        
-        # AXI Write Data Channel
-        self.s_axi_wdata = dut.s_axi_wdata
-        self.s_axi_wvalid = dut.s_axi_wvalid
-        self.s_axi_wready = dut.s_axi_wready
-        
-        # AXI Write Response Channel
-        self.s_axi_bresp = dut.s_axi_bresp
-        self.s_axi_bvalid = dut.s_axi_bvalid
-        self.s_axi_bready = dut.s_axi_bready
-        
-        # AXI Read Address Channel
-        self.s_axi_araddr = dut.s_axi_araddr
-        self.s_axi_arvalid = dut.s_axi_arvalid
-        self.s_axi_arready = dut.s_axi_arready
-        
-        # AXI Read Data Channel
-        self.s_axi_rdata = dut.s_axi_rdata
-        self.s_axi_rresp = dut.s_axi_rresp
-        self.s_axi_rvalid = dut.s_axi_rvalid
-        self.s_axi_rready = dut.s_axi_rready
+        # OBI struct signals (accessed as packed values)
+        self.obi_req_i = dut.obi_req_i
+        self.obi_rsp_o = dut.obi_rsp_o
         
         # Controller-facing ports
         self.operation_out = dut.operation_out
@@ -62,6 +61,9 @@ class AXIInterfaceTester:
         self.hit_in = dut.hit_in
         self.done_in = dut.done_in
         
+        # Transaction ID counter
+        self.next_tid = 0
+        
         # Register addresses (word-aligned)
         self.ADDR_OP = 0x00
         self.ADDR_KEY = 0x04
@@ -71,18 +73,56 @@ class AXIInterfaceTester:
         self.ADDR_STATUS = 0x10  # ADDR_VAL_BASE + 2*4
         self.ADDR_RES_BASE = 0x14  # ADDR_STATUS + 4
 
+    def pack_obi_req(self, req, addr, we, be, wdata, aid):
+        """
+        Pack OBI request struct fields into a 74-bit value.
+        
+        Args:
+            req: Request valid (1 bit)
+            addr: Address (32 bits)
+            we: Write enable (1 bit)
+            be: Byte enable (4 bits)
+            wdata: Write data (32 bits)
+            aid: Transaction ID (3 bits)
+        
+        Returns:
+            74-bit packed value
+        """
+        # Build from LSB to MSB
+        packed = 0
+        packed |= (req & 0x1)                    # bit [0]
+        packed |= (0 & 0x1) << 1                 # a_optional [1]
+        packed |= (aid & 0x7) << 2               # aid[2:0] [4:2]
+        packed |= (wdata & 0xFFFFFFFF) << 5      # wdata[31:0] [36:5]
+        packed |= (be & 0xF) << 37               # be[3:0] [40:37]
+        packed |= (we & 0x1) << 41               # we [41]
+        packed |= (addr & 0xFFFFFFFF) << 42      # addr[31:0] [73:42]
+        return packed
+    
+    def unpack_obi_rsp(self, rsp_value):
+        """
+        Unpack OBI response struct from a 39-bit value.
+        
+        Args:
+            rsp_value: 39-bit packed response value
+        
+        Returns:
+            Tuple of (rvalid, gnt, rdata, rid, err)
+        """
+        rsp = int(rsp_value)
+        rvalid = (rsp >> 0) & 0x1                # bit [0]
+        gnt = (rsp >> 1) & 0x1                   # bit [1]
+        # r_optional at bit [2] - ignored
+        err = (rsp >> 3) & 0x1                   # bit [3]
+        rid = (rsp >> 4) & 0x7                   # bits [6:4]
+        rdata = (rsp >> 7) & 0xFFFFFFFF          # bits [38:7]
+        return (rvalid, gnt, rdata, rid, err)
     async def reset(self):
         """Apply reset pulse to the DUT."""
         self.rst_n.value = 0
-        # Initialize all AXI master signals to idle
-        self.s_axi_awaddr.value = 0
-        self.s_axi_awvalid.value = 0
-        self.s_axi_wdata.value = 0
-        self.s_axi_wvalid.value = 0
-        self.s_axi_bready.value = 0
-        self.s_axi_araddr.value = 0
-        self.s_axi_arvalid.value = 0
-        self.s_axi_rready.value = 0
+        
+        # Initialize OBI request to idle (all zeros)
+        self.obi_req_i.value = 0
         
         # Initialize controller signals
         self.result_value_in.value = 0
@@ -90,107 +130,113 @@ class AXIInterfaceTester:
         self.done_in.value = 0
         
         await RisingEdge(self.clk)
-        await RisingEdge(self.clk)
         self.rst_n.value = 1
         await RisingEdge(self.clk)
+
 
     async def wait_cycles(self, num_cycles: int):
         """Wait for specified number of clock cycles."""
         for _ in range(num_cycles):
             await RisingEdge(self.clk)
 
-    async def axi_write(self, address: int, data: int):
+    async def obi_write(self, address: int, data: int):
         """
-        Perform a complete AXI write transaction.
+        Perform a complete OBI write transaction.
+        
+        OBI Write Protocol:
+        1. Assert req=1, we=1, addr, wdata, be=0xF (all bytes)
+        2. Wait for gnt=1 on same cycle (handshake completes)
+        3. Deassert req on next cycle
         
         Args:
             address: Register address (word-aligned)
             data: Data value to write
         
         Returns:
-            Response code (should be 0 for OKAY)
+            Transaction ID used
         """
-        # Phase 1: Write address
-        self.s_axi_awaddr.value = address
-        self.s_axi_awvalid.value = 1
+        # Get transaction ID
+        tid = self.next_tid
+        self.next_tid = (self.next_tid + 1) & 0x7  # 3-bit ID wraps at 8
         
-        # Wait for address acceptance
-        while True:
+        # Pack and assert OBI request
+        packed_req = self.pack_obi_req(
+            req=1,
+            addr=address,
+            we=1,
+            be=0xF,  # All 4 bytes enabled
+            wdata=data,
+            aid=tid
+        )
+        self.obi_req_i.value = packed_req
+        
+        # Wait for grant handshake
+        gnt_seen = False
+        while not gnt_seen:
             await RisingEdge(self.clk)
-            await ReadOnly()
-            if self.s_axi_awready.value == 1:
-                break
+            # Sample response (outside ReadOnly so we can modify signals after)
+            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
+            if gnt == 1:
+                gnt_seen = True
         
-        self.s_axi_awvalid.value = 0
+        # Deassert request after handshake (same cycle as gnt was seen)
+        self.obi_req_i.value = 0
         
-        # Phase 2: Write data
-        self.s_axi_wdata.value = data
-        self.s_axi_wvalid.value = 1
-        
-        # Wait for data acceptance
-        while True:
-            await RisingEdge(self.clk)
-            await ReadOnly()
-            if self.s_axi_wready.value == 1:
-                break
-        
-        self.s_axi_wvalid.value = 0
-        
-        # Phase 3: Write response
-        self.s_axi_bready.value = 1
-        
-        # Wait for response
-        while True:
-            await RisingEdge(self.clk)
-            await ReadOnly()
-            if self.s_axi_bvalid.value == 1:
-                resp = int(self.s_axi_bresp.value)
-                break
-        
-        self.s_axi_bready.value = 0
-        await RisingEdge(self.clk)
-        
-        return resp
+        return tid
 
-    async def axi_read(self, address: int):
+    async def obi_read(self, address: int):
         """
-        Perform a complete AXI read transaction.
+        Perform a complete OBI read transaction.
+        
+        OBI Read Protocol:
+        1. Assert req=1, we=0, addr, be=0xF
+        2. Wait for gnt=1 on same cycle (A-channel handshake)
+        3. Deassert req on next cycle
+        4. Wait for rvalid=1 (exactly one cycle after gnt for this subordinate)
+        5. Read rdata when rvalid=1
         
         Args:
             address: Register address (word-aligned)
         
         Returns:
-            Tuple of (data, response_code)
+            Tuple of (data, tid, err)
         """
-        # Phase 1: Read address
-        self.s_axi_araddr.value = address
-        self.s_axi_arvalid.value = 1
+        # Get transaction ID
+        tid = self.next_tid
+        self.next_tid = (self.next_tid + 1) & 0x7  # 3-bit ID wraps at 8
         
-        # Wait for address acceptance
+        # Pack and assert OBI request for read
+        packed_req = self.pack_obi_req(
+            req=1,
+            addr=address,
+            we=0,  # Read operation
+            be=0xF,
+            wdata=0,  # Don't care for reads
+            aid=tid
+        )
+        self.obi_req_i.value = packed_req
+        
+        # Wait for grant handshake (A-channel)
+        gnt_seen = False
+        while not gnt_seen:
+            await RisingEdge(self.clk)
+            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
+            if gnt == 1:
+                gnt_seen = True
+        
+        # Deassert request after A-channel handshake
+        self.obi_req_i.value = 0
+        
+        # Wait for R-channel response (rvalid=1)
+        # For this subordinate, rvalid asserts exactly one cycle after gnt
         while True:
             await RisingEdge(self.clk)
             await ReadOnly()
-            if self.s_axi_arready.value == 1:
+            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
+            if rvalid == 1:
                 break
         
-        self.s_axi_arvalid.value = 0
-        
-        # Phase 2: Read data
-        self.s_axi_rready.value = 1
-        
-        # Wait for data valid
-        while True:
-            await RisingEdge(self.clk)
-            await ReadOnly()
-            if self.s_axi_rvalid.value == 1:
-                data = int(self.s_axi_rdata.value)
-                resp = int(self.s_axi_rresp.value)
-                break
-        
-        self.s_axi_rready.value = 0
-        await RisingEdge(self.clk)
-        
-        return data, resp
+        return (rdata, rid, err)
 
     async def poll_status(self, timeout_cycles: int = 100):
         """
@@ -203,9 +249,8 @@ class AXIInterfaceTester:
             Status register value when done, or None if timeout
         """
         for _ in range(timeout_cycles):
-            status, _ = await self.axi_read(self.ADDR_STATUS)
-            done_bit = status & 0x1
-            if done_bit:
+            status, _, _ = await self.obi_read(self.ADDR_STATUS)
+            if self.get_done_bit(status):
                 return status
             await self.wait_cycles(1)
         return None
@@ -237,12 +282,58 @@ async def test_reset_initialization(dut):
     Test: Verify proper initialization after reset.
     
     Checks:
-    - All AXI handshake signals are deasserted
+    - All OBI handshake signals are deasserted
     - FSM is in IDLE state (0)
     - All output signals are zero
     - Status register shows IDLE state with no flags set
     """
-    pass
+    # Debug: Print available signals
+    dut._log.info("=== Available DUT signals ===")
+    for item in dir(dut):
+        if not item.startswith('_'):
+            dut._log.info(f"  {item}")
+    
+    tester = OBIInterfaceTester(dut)
+    
+    # Start clock
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+        
+    # Check OBI response signals are deasserted (sample at readonly)
+    await ReadOnly()
+    rvalid, gnt, rdata, rid, err = tester.unpack_obi_rsp(dut.obi_rsp_o.value)
+    assert gnt == 0, "gnt should be 0 after reset (no request)"
+    assert rvalid == 0, "rvalid should be 0 after reset"
+    
+    # Check controller output signals are zero
+    assert dut.operation_out.value == 0, "operation_out should be 0 after reset"
+    assert dut.key_out.value == 0, "key_out should be 0 after reset"
+    assert dut.value_out.value == 0, "value_out should be 0 after reset"
+    assert dut.start_out.value == 0, "start_out should be 0 after reset"
+        
+
+    # Read status register
+    status, _, err = await tester.obi_read(tester.ADDR_STATUS)
+    
+    # Verify no error
+    assert err == 0, f"Status read should not error, got err={err}"
+    
+    # Extract status fields
+    fsm_state = tester.get_fsm_state(status)
+    done_bit = tester.get_done_bit(status)
+    hit_bit = tester.get_hit_bit(status)
+    error_bit = tester.get_error_bit(status)
+    
+    # Verify status register shows IDLE state with no flags
+    assert fsm_state == 0, f"FSM should be in IDLE (0), got {fsm_state}"
+    assert done_bit == 0, f"done bit should be 0, got {done_bit}"
+    assert hit_bit == 0, f"hit bit should be 0, got {hit_bit}"
+    assert error_bit == 0, f"error bit should be 0, got {error_bit}"
+    
+    dut._log.info("✓ Reset initialization test passed")
 
 
 @cocotb.test()
@@ -255,722 +346,770 @@ async def test_reset_clears_registers(dut):
     - Apply reset
     - Verify all registers read back as zero
     """
-    pass
-
-
-# =============================================================================
-# AXI WRITE CHANNEL TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_axi_write_operation_register(dut):
-    """
-    Test: Write to operation register (address 0x00).
+    tester = OBIInterfaceTester(dut)
     
-    Checks:
-    - AXI write transaction completes successfully
-    - Response is OKAY (0x0)
-    - op_written pulse is generated
-    - FSM transitions from IDLE to EXECUTE
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_key_register(dut):
-    """
-    Test: Write to key register (address 0x04).
+    # Start clock
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
     
-    Checks:
-    - AXI write transaction completes successfully
-    - key_out reflects written value
-    - No FSM state change (no op_written pulse)
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_value_registers(dut):
-    """
-    Test: Write to value registers (addresses 0x08, 0x0C for 64-bit value).
+    # Initial reset
+    await tester.reset()
     
-    Checks:
-    - Write both lower and upper 32-bit words
-    - value_out reflects combined 64-bit value
-    - Correct little-endian byte ordering
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_address_handshake(dut):
-    """
-    Test: Verify write address channel handshake protocol.
+    # Write some values to registers
+    dut._log.info("Writing test values to registers...")
     
-    Checks:
-    - awready asserts in response to awvalid
-    - Address is latched correctly
-    - Multiple cycles of awvalid before awready
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_data_handshake(dut):
-    """
-    Test: Verify write data channel handshake protocol.
+    # Write to key register
+    await tester.obi_write(tester.ADDR_KEY, 0x1234)
     
-    Checks:
-    - wready asserts after address is latched
-    - Data is written when both wvalid and wready are high
-    - wready deasserts after transfer
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_response_handshake(dut):
-    """
-    Test: Verify write response channel handshake protocol.
+    # Write to value registers (64-bit value across two 32-bit registers)
+    await tester.obi_write(tester.ADDR_VAL_BASE, 0xDEADBEEF)
+    await tester.obi_write(tester.ADDR_VAL_BASE + 4, 0xCAFEBABE)
     
-    Checks:
-    - bvalid asserts after write completes
-    - Response code is OKAY (0x0)
-    - bvalid deasserts after bready handshake
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_back_to_back(dut):
-    """
-    Test: Multiple consecutive write transactions without gaps.
+    # Write to operation register
+    await tester.obi_write(tester.ADDR_OP, 0x01)  # READ operation
     
-    Checks:
-    - First write completes correctly
-    - Second write starts immediately after first
-    - Both writes complete successfully
-    - No data corruption or lost transactions
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_write_with_delays(dut):
-    """
-    Test: Write transactions with delays between phases.
+    # Verify values were written by reading them back
+    key_val, _, _ = await tester.obi_read(tester.ADDR_KEY)
+    assert key_val == 0x1234, f"Key should be 0x1234 before reset, got 0x{key_val:08x}"
     
-    Checks:
-    - Delay between awvalid and wvalid
-    - Delay before bready assertion
-    - Transaction still completes correctly
-    """
-    pass
-
-
-# =============================================================================
-# AXI READ CHANNEL TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_axi_read_operation_register(dut):
-    """
-    Test: Read from operation register after writing.
+    val0, _, _ = await tester.obi_read(tester.ADDR_VAL_BASE)
+    assert val0 == 0xDEADBEEF, f"Value[0] should be 0xDEADBEEF before reset, got 0x{val0:08x}"
     
-    Checks:
-    - Write a value to operation register
-    - Read it back via AXI
-    - Values match
-    - Response is OKAY
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_key_register(dut):
-    """
-    Test: Read from key register after writing.
+    dut._log.info("Test values written successfully, applying reset...")
     
-    Checks:
-    - Write a value to key register
-    - Read it back via AXI
-    - Values match
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_value_registers(dut):
-    """
-    Test: Read from value registers after writing.
+    # Apply reset
+    dut.rst_n.value = 0
+    await tester.wait_cycles(2)
+    dut.rst_n.value = 1
+    await tester.wait_cycles(1)
     
-    Checks:
-    - Write multi-word value
-    - Read back all words
-    - Reconstructed value matches original
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_status_register(dut):
-    """
-    Test: Read status register in different FSM states.
+    # Read back all registers and verify they are zero
+    dut._log.info("Verifying registers are cleared after reset...")
     
-    Checks:
-    - Status in IDLE state
-    - Status in EXECUTE state (brief)
-    - Status in WAIT state
-    - Status in COMPLETE state
-    - Correct bit field encoding
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_result_registers(dut):
-    """
-    Test: Read result registers after operation completes.
+    # Read operation register
+    op_val, _, _ = await tester.obi_read(tester.ADDR_OP)
+    assert op_val == 0, f"Operation register should be 0 after reset, got 0x{op_val:08x}"
     
-    Checks:
-    - Perform operation that sets result_value_in
-    - Wait for done
-    - Read result registers
-    - Values match result_value_in
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_address_handshake(dut):
-    """
-    Test: Verify read address channel handshake protocol.
+    # Read key register
+    key_val, _, _ = await tester.obi_read(tester.ADDR_KEY)
+    assert key_val == 0, f"Key register should be 0 after reset, got 0x{key_val:08x}"
     
-    Checks:
-    - arready asserts in response to arvalid
-    - Single-cycle address acceptance
-    - No spurious arready assertions
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_data_handshake(dut):
-    """
-    Test: Verify read data channel handshake protocol.
+    # Read value registers
+    val0, _, _ = await tester.obi_read(tester.ADDR_VAL_BASE)
+    assert val0 == 0, f"Value[0] register should be 0 after reset, got 0x{val0:08x}"
     
-    Checks:
-    - rvalid asserts after address phase
-    - Data is stable when rvalid is high
-    - rvalid deasserts after rready handshake
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_back_to_back(dut):
-    """
-    Test: Multiple consecutive read transactions.
+    val1, _, _ = await tester.obi_read(tester.ADDR_VAL_BASE + 4)
+    assert val1 == 0, f"Value[1] register should be 0 after reset, got 0x{val1:08x}"
     
-    Checks:
-    - Read multiple registers in sequence
-    - No gaps between transactions
-    - All reads return correct data
-    """
-    pass
-
-
-@cocotb.test()
-async def test_axi_read_with_delays(dut):
-    """
-    Test: Read transactions with delays.
+    # Read result registers
+    res0, _, _ = await tester.obi_read(tester.ADDR_RES_BASE)
+    assert res0 == 0, f"Result[0] register should be 0 after reset, got 0x{res0:08x}"
     
-    Checks:
-    - Delay before rready assertion
-    - Multiple cycles with rvalid high
-    - Transaction completes correctly
-    """
-    pass
-
-
-# =============================================================================
-# FSM STATE MACHINE TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_fsm_idle_state(dut):
-    """
-    Test: FSM remains in IDLE when no operation is written.
+    res1, _, _ = await tester.obi_read(tester.ADDR_RES_BASE + 4)
+    assert res1 == 0, f"Result[1] register should be 0 after reset, got 0x{res1:08x}"
     
-    Checks:
-    - FSM starts in IDLE after reset
-    - Stays in IDLE through multiple clock cycles
-    - start_out remains low
-    - Status register reflects IDLE state
-    """
-    pass
-
-
-@cocotb.test()
-async def test_fsm_idle_to_execute_transition(dut):
-    """
-    Test: FSM transitions from IDLE to EXECUTE when operation is written.
+    # Read status register
+    status, _, _ = await tester.obi_read(tester.ADDR_STATUS)
+    fsm_state = tester.get_fsm_state(status)
+    done_bit = tester.get_done_bit(status)
     
-    Checks:
-    - Write to operation register
-    - FSM changes from IDLE (0) to EXECUTE (1) on next cycle
-    - op_written pulse triggers transition
-    """
-    pass
-
-
-@cocotb.test()
-async def test_fsm_execute_to_wait_transition(dut):
-    """
-    Test: FSM automatically transitions from EXECUTE to WAIT in one cycle.
+    assert fsm_state == 0, f"FSM should be in IDLE after reset, got {fsm_state}"
+    assert done_bit == 0, f"Done bit should be 0 after reset, got {done_bit}"
     
-    Checks:
-    - EXECUTE state lasts exactly one clock cycle
-    - start_out is high for exactly one cycle
-    - FSM enters WAIT state next cycle
-    """
-    pass
-
-
-@cocotb.test()
-async def test_fsm_wait_state_until_done(dut):
-    """
-    Test: FSM remains in WAIT state until done_in is asserted.
+    # Check controller outputs are cleared (sample at readonly)
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    assert dut.operation_out.value == 0, "operation_out should be 0 after reset"
+    assert dut.key_out.value == 0, "key_out should be 0 after reset"
+    assert dut.value_out.value == 0, "value_out should be 0 after reset"
+    assert dut.start_out.value == 0, "start_out should be 0 after reset"
     
-    Checks:
-    - FSM stays in WAIT for multiple cycles
-    - start_out is low during WAIT
-    - FSM doesn't advance until done_in = 1
-    """
-    pass
+    dut._log.info("✓ Reset clears registers test passed")
 
 
-@cocotb.test()
-async def test_fsm_wait_to_complete_transition(dut):
-    """
-    Test: FSM transitions from WAIT to COMPLETE when done_in asserts.
+# # =============================================================================
+# # OBI WRITE TRANSACTION TESTS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_obi_write_operation_register(dut):
+#     """
+#     Test: Write to operation register (address 0x00).
     
-    Checks:
-    - Assert done_in while in WAIT state
-    - FSM transitions to COMPLETE (3) on next cycle
-    - Results are latched
-    - status_done flag is set
-    """
-    pass
+#     Checks:
+#     - OBI write transaction completes successfully
+#     - gnt handshake occurs
+#     - op_written pulse is generated
+#     - FSM transitions from IDLE to EXECUTE
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_fsm_complete_state_holds_results(dut):
-    """
-    Test: FSM holds in COMPLETE state with results stable.
+# @cocotb.test()
+# async def test_obi_write_key_register(dut):
+#     """
+#     Test: Write to key register (address 0x04).
     
-    Checks:
-    - COMPLETE state persists until next operation
-    - status_done remains high
-    - Result registers remain stable
-    - Can read results multiple times
-    """
-    pass
+#     Checks:
+#     - OBI write transaction completes successfully
+#     - key_out reflects written value
+#     - No FSM state change (no op_written pulse)
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_fsm_complete_to_execute_transition(dut):
-    """
-    Test: FSM transitions from COMPLETE to EXECUTE on next operation.
+# @cocotb.test()
+# async def test_obi_write_value_registers(dut):
+#     """
+#     Test: Write to value registers (addresses 0x08, 0x0C for 64-bit value).
     
-    Checks:
-    - Write operation register while in COMPLETE
-    - FSM goes directly to EXECUTE (not IDLE)
-    - Previous status_done is cleared
-    - New operation begins immediately
-    """
-    pass
+#     Checks:
+#     - Write both lower and upper 32-bit words
+#     - value_out reflects combined 64-bit value
+#     - Correct little-endian byte ordering
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_start_out_single_cycle_pulse(dut):
-    """
-    Test: start_out is a single-cycle pulse in EXECUTE state.
+# @cocotb.test()
+# async def test_obi_write_handshake(dut):
+#     """
+#     Test: Verify write request/grant handshake protocol.
     
-    Checks:
-    - start_out goes high for exactly one clock cycle
-    - start_out is low before and after
-    - Timing matches EXECUTE state
-    """
-    pass
+#     Checks:
+#     - gnt asserts in response to req
+#     - Address and data are latched correctly
+#     - Multiple cycles of req before gnt
+#     """
+#     pass
 
 
-# =============================================================================
-# CONTROLLER INTERFACE TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_operation_out_reflects_op_reg(dut):
-    """
-    Test: operation_out reflects the operation register value.
+# @cocotb.test()
+# async def test_obi_write_back_to_back(dut):
+#     """
+#     Test: Multiple consecutive write transactions without gaps.
     
-    Checks:
-    - Write different operation codes
-    - operation_out matches written value
-    - Updates immediately (combinational)
-    """
-    pass
+#     Checks:
+#     - First write completes correctly
+#     - Second write starts immediately after first
+#     - Both writes complete successfully
+#     - No data corruption or lost transactions
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_key_out_reflects_key_reg(dut):
-    """
-    Test: key_out reflects the key register value.
+# @cocotb.test()
+# async def test_obi_write_with_delays(dut):
+#     """
+#     Test: Write transactions with delays between requests.
     
-    Checks:
-    - Write various key values
-    - key_out matches (lower KEY_WIDTH bits)
-    - Updates immediately
-    """
-    pass
+#     Checks:
+#     - Delay before asserting req again
+#     - Transaction still completes correctly
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_value_out_reflects_value_regs(dut):
-    """
-    Test: value_out correctly concatenates value registers.
+# # =============================================================================
+# # OBI READ TRANSACTION TESTS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_obi_read_operation_register(dut):
+#     """
+#     Test: Read from operation register after writing.
     
-    Checks:
-    - Write multi-word value (64-bit from two 32-bit registers)
-    - value_out reflects correct 64-bit combination
-    - Proper bit ordering (LSW first)
-    """
-    pass
+#     Checks:
+#     - Write a value to operation register
+#     - Read it back via OBI
+#     - Values match
+#     - No error flag set
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_result_value_latching(dut):
-    """
-    Test: result_value_in is correctly latched when done_in asserts.
+# @cocotb.test()
+# async def test_obi_read_key_register(dut):
+#     """
+#     Test: Read from key register after writing.
     
-    Checks:
-    - Start an operation
-    - Assert done_in with specific result_value_in
-    - Verify result registers contain correct value
-    - Result remains stable after done_in deasserts
-    """
-    pass
+#     Checks:
+#     - Write a value to key register
+#     - Read it back via OBI
+#     - Values match
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_hit_status_latching(dut):
-    """
-    Test: hit_in is correctly latched when done_in asserts.
+# @cocotb.test()
+# async def test_obi_read_value_registers(dut):
+#     """
+#     Test: Read from value registers after writing.
     
-    Checks:
-    - Test with hit_in = 0 (miss)
-    - Test with hit_in = 1 (hit)
-    - Verify status_hit bit in status register
-    - Hit status persists in COMPLETE state
-    """
-    pass
+#     Checks:
+#     - Write multi-word value
+#     - Read back all words
+#     - Reconstructed value matches original
+#     """
+#     pass
 
 
-# =============================================================================
-# STATUS REGISTER TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_status_register_idle_state(dut):
-    """
-    Test: Status register contents in IDLE state.
+# @cocotb.test()
+# async def test_obi_read_status_register(dut):
+#     """
+#     Test: Read status register in different FSM states.
     
-    Checks:
-    - FSM state bits = 00 (IDLE)
-    - done bit = 0
-    - hit bit = 0
-    - error bit = 0
-    """
-    pass
+#     Checks:
+#     - Status in IDLE state
+#     - Status in EXECUTE state (brief)
+#     - Status in WAIT state
+#     - Status in COMPLETE state
+#     - Correct bit field encoding
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_status_register_execute_state(dut):
-    """
-    Test: Status register contents in EXECUTE state.
+# @cocotb.test()
+# async def test_obi_read_result_registers(dut):
+#     """
+#     Test: Read result registers after operation completes.
     
-    Checks:
-    - FSM state bits = 01 (EXECUTE)
-    - Can read status during brief EXECUTE state
-    """
-    pass
+#     Checks:
+#     - Perform operation that sets result_value_in
+#     - Wait for done
+#     - Read result registers
+#     - Values match result_value_in
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_status_register_wait_state(dut):
-    """
-    Test: Status register contents in WAIT state.
+# @cocotb.test()
+# async def test_obi_read_handshake(dut):
+#     """
+#     Test: Verify read request/grant and response handshake protocol.
     
-    Checks:
-    - FSM state bits = 10 (WAIT)
-    - done bit = 0 (operation in progress)
-    """
-    pass
+#     Checks:
+#     - gnt asserts in response to req (A-channel)
+#     - rvalid asserts one cycle after gnt
+#     - Data is stable when rvalid is high
+#     - No spurious rvalid assertions
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_status_register_complete_state(dut):
-    """
-    Test: Status register contents in COMPLETE state.
+# @cocotb.test()
+# async def test_obi_read_back_to_back(dut):
+#     """
+#     Test: Multiple consecutive read transactions.
     
-    Checks:
-    - FSM state bits = 11 (COMPLETE)
-    - done bit = 1
-    - hit bit reflects actual hit status
-    """
-    pass
+#     Checks:
+#     - Read multiple registers in sequence
+#     - No gaps between transactions
+#     - All reads return correct data
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_status_done_bit(dut):
-    """
-    Test: Status done bit (bit 0) behavior.
+# @cocotb.test()
+# async def test_obi_read_with_delays(dut):
+#     """
+#     Test: Read transactions with delays.
     
-    Checks:
-    - done = 0 in IDLE, EXECUTE, WAIT
-    - done = 1 in COMPLETE
-    - done clears when new operation starts
-    """
-    pass
+#     Checks:
+#     - Delay before next req assertion
+#     - Transaction completes correctly
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_status_hit_bit(dut):
-    """
-    Test: Status hit bit (bit 1) behavior.
+# @cocotb.test()
+# async def test_obi_simultaneous_operations(dut):
+#     """
+#     Test: OBI protocol behavior with rapid successive requests.
     
-    Checks:
-    - hit = 0 initially
-    - hit latches value from hit_in signal
-    - hit persists in COMPLETE state
-    - hit clears on next operation
-    """
-    pass
+#     Checks:
+#     - Can handle back-to-back requests
+#     - Each transaction properly isolated
+#     - Transaction IDs tracked correctly
+#     """
+#     pass
 
+# # =============================================================================
 
-@cocotb.test()
-async def test_status_fsm_state_bits(dut):
-    """
-    Test: Status FSM state bits (bits 4:3) encoding.
+# @cocotb.test()
+# async def test_fsm_idle_state(dut):
+#     """
+#     Test: FSM remains in IDLE when no operation is written.
     
-    Checks:
-    - Correct 2-bit encoding for each state
-    - State bits update as FSM transitions
-    - Can track FSM progress by reading status
-    """
-    pass
+#     Checks:
+#     - FSM starts in IDLE after reset
+#     - Stays in IDLE through multiple clock cycles
+#     - start_out remains low
+#     - Status register reflects IDLE state
+#     """
+#     pass
 
 
-# =============================================================================
-# END-TO-END OPERATION TESTS
-# =============================================================================
-
-@cocotb.test()
-async def test_complete_get_operation(dut):
-    """
-    Test: Complete GET operation from start to finish.
+# @cocotb.test()
+# async def test_fsm_idle_to_execute_transition(dut):
+#     """
+#     Test: FSM transitions from IDLE to EXECUTE when operation is written.
     
-    Flow:
-    1. Write key register
-    2. Write operation register (GET/READ)
-    3. Wait for done via status polling
-    4. Read result registers
-    5. Verify result matches expected value
-    """
-    pass
+#     Checks:
+#     - Write to operation register
+#     - FSM changes from IDLE (0) to EXECUTE (1) on next cycle
+#     - op_written pulse triggers transition
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_complete_put_operation(dut):
-    """
-    Test: Complete PUT operation from start to finish.
+# @cocotb.test()
+# async def test_fsm_execute_to_wait_transition(dut):
+#     """
+#     Test: FSM automatically transitions from EXECUTE to WAIT in one cycle.
     
-    Flow:
-    1. Write key register
-    2. Write value registers
-    3. Write operation register (PUT/CREATE)
-    4. Wait for done
-    5. Check status for success
-    """
-    pass
+#     Checks:
+#     - EXECUTE state lasts exactly one clock cycle
+#     - start_out is high for exactly one cycle
+#     - FSM enters WAIT state next cycle
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_complete_delete_operation(dut):
-    """
-    Test: Complete DELETE operation from start to finish.
+# @cocotb.test()
+# async def test_fsm_wait_state_until_done(dut):
+#     """
+#     Test: FSM remains in WAIT state until done_in is asserted.
     
-    Flow:
-    1. Write key register
-    2. Write operation register (DELETE)
-    3. Wait for done
-    4. Check status
-    """
-    pass
+#     Checks:
+#     - FSM stays in WAIT for multiple cycles
+#     - start_out is low during WAIT
+#     - FSM doesn't advance until done_in = 1
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_sequential_operations(dut):
-    """
-    Test: Multiple operations executed in sequence.
+# @cocotb.test()
+# async def test_fsm_wait_to_complete_transition(dut):
+#     """
+#     Test: FSM transitions from WAIT to COMPLETE when done_in asserts.
     
-    Flow:
-    1. Perform PUT operation
-    2. Wait for completion
-    3. Perform GET operation on same key
-    4. Verify retrieved value matches PUT value
-    5. Perform DELETE operation
-    6. Each operation completes successfully
-    """
-    pass
+#     Checks:
+#     - Assert done_in while in WAIT state
+#     - FSM transitions to COMPLETE (3) on next cycle
+#     - Results are latched
+#     - status_done flag is set
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_operation_with_cache_hit(dut):
-    """
-    Test: Operation that results in cache hit.
+# @cocotb.test()
+# async def test_fsm_complete_state_holds_results(dut):
+#     """
+#     Test: FSM holds in COMPLETE state with results stable.
     
-    Checks:
-    - Provide hit_in = 1 from controller
-    - Verify status_hit bit is set
-    - Result value is provided
-    """
-    pass
+#     Checks:
+#     - COMPLETE state persists until next operation
+#     - status_done remains high
+#     - Result registers remain stable
+#     - Can read results multiple times
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_operation_with_cache_miss(dut):
-    """
-    Test: Operation that results in cache miss.
+# @cocotb.test()
+# async def test_fsm_complete_to_execute_transition(dut):
+#     """
+#     Test: FSM transitions from COMPLETE to EXECUTE on next operation.
     
-    Checks:
-    - Provide hit_in = 0 from controller
-    - Verify status_hit bit is clear
-    - Operation still completes
-    """
-    pass
+#     Checks:
+#     - Write operation register while in COMPLETE
+#     - FSM goes directly to EXECUTE (not IDLE)
+#     - Previous status_done is cleared
+#     - New operation begins immediately
+#     """
+#     pass
 
 
-# =============================================================================
-# EDGE CASES AND ERROR CONDITIONS
-# =============================================================================
-
-@cocotb.test()
-async def test_write_during_operation_in_progress(dut):
-    """
-    Test: Attempt to write registers while operation is executing.
+# @cocotb.test()
+# async def test_start_out_single_cycle_pulse(dut):
+#     """
+#     Test: start_out is a single-cycle pulse in EXECUTE state.
     
-    Checks:
-    - Start an operation (FSM in WAIT)
-    - Try to write to key/value registers
-    - Writes should be accepted by AXI protocol
-    - Behavior is well-defined (may overwrite for next operation)
-    """
-    pass
+#     Checks:
+#     - start_out goes high for exactly one clock cycle
+#     - start_out is low before and after
+#     - Timing matches EXECUTE state
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_read_results_before_completion(dut):
-    """
-    Test: Read result registers before operation completes.
+# # =============================================================================
+# # CONTROLLER INTERFACE TESTS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_operation_out_reflects_op_reg(dut):
+#     """
+#     Test: operation_out reflects the operation register value.
     
-    Checks:
-    - Start an operation
-    - Read result registers while in WAIT state
-    - Should read stale/zero values
-    - No protocol violation
-    """
-    pass
+#     Checks:
+#     - Write different operation codes
+#     - operation_out matches written value
+#     - Updates immediately (combinational)
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_invalid_address_write(dut):
-    """
-    Test: Write to invalid/unmapped address.
+# @cocotb.test()
+# async def test_key_out_reflects_key_reg(dut):
+#     """
+#     Test: key_out reflects the key register value.
     
-    Checks:
-    - AXI transaction completes
-    - Response code indicates success (AXI doesn't check validity)
-    - No side effects on valid registers
-    """
-    pass
+#     Checks:
+#     - Write various key values
+#     - key_out matches (lower KEY_WIDTH bits)
+#     - Updates immediately
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_invalid_address_read(dut):
-    """
-    Test: Read from invalid/unmapped address.
+# @cocotb.test()
+# async def test_value_out_reflects_value_regs(dut):
+#     """
+#     Test: value_out correctly concatenates value registers.
     
-    Checks:
-    - AXI transaction completes
-    - Returns zero or undefined value
-    - No protocol violation
-    """
-    pass
+#     Checks:
+#     - Write multi-word value (64-bit from two 32-bit registers)
+#     - value_out reflects correct 64-bit combination
+#     - Proper bit ordering (LSW first)
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_simultaneous_read_write(dut):
-    """
-    Test: Attempt read and write on same cycle (different channels).
+# @cocotb.test()
+# async def test_result_value_latching(dut):
+#     """
+#     Test: result_value_in is correctly latched when done_in asserts.
     
-    Checks:
-    - AXI read and write channels are independent
-    - Both transactions can proceed
-    - No interference between channels
-    """
-    pass
+#     Checks:
+#     - Start an operation
+#     - Assert done_in with specific result_value_in
+#     - Verify result registers contain correct value
+#     - Result remains stable after done_in deasserts
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_multiword_value_handling(dut):
-    """
-    Test: Proper handling of 64-bit values across two 32-bit registers.
+# @cocotb.test()
+# async def test_hit_status_latching(dut):
+#     """
+#     Test: hit_in is correctly latched when done_in asserts.
     
-    Checks:
-    - Write 64-bit value as two 32-bit words
-    - value_out correctly reconstructs full 64-bit value
-    - Read back as two 32-bit words from result registers
-    - Bit ordering is correct
-    """
-    pass
+#     Checks:
+#     - Test with hit_in = 0 (miss)
+#     - Test with hit_in = 1 (hit)
+#     - Verify status_hit bit in status register
+#     - Hit status persists in COMPLETE state
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_rapid_operation_requests(dut):
-    """
-    Test: Submit new operation immediately after previous completes.
+# # =============================================================================
+# # STATUS REGISTER TESTS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_status_register_idle_state(dut):
+#     """
+#     Test: Status register contents in IDLE state.
     
-    Checks:
-    - First operation completes normally
-    - Write new operation register in COMPLETE state
-    - FSM goes directly to EXECUTE (bypasses IDLE)
-    - Second operation executes correctly
-    """
-    pass
+#     Checks:
+#     - FSM state bits = 00 (IDLE)
+#     - done bit = 0
+#     - hit bit = 0
+#     - error bit = 0
+#     """
+#     pass
 
 
-@cocotb.test()
-async def test_long_operation_timeout(dut):
-    """
-    Test: Operation that takes many cycles to complete.
+# @cocotb.test()
+# async def test_status_register_execute_state(dut):
+#     """
+#     Test: Status register contents in EXECUTE state.
     
-    Checks:
-    - FSM stays in WAIT for extended period
-    - Interface remains responsive to reads
-    - Eventually completes when done_in asserts
-    """
-    pass
+#     Checks:
+#     - FSM state bits = 01 (EXECUTE)
+#     - Can read status during brief EXECUTE state
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_status_register_wait_state(dut):
+#     """
+#     Test: Status register contents in WAIT state.
+    
+#     Checks:
+#     - FSM state bits = 10 (WAIT)
+#     - done bit = 0 (operation in progress)
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_status_register_complete_state(dut):
+#     """
+#     Test: Status register contents in COMPLETE state.
+    
+#     Checks:
+#     - FSM state bits = 11 (COMPLETE)
+#     - done bit = 1
+#     - hit bit reflects actual hit status
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_status_done_bit(dut):
+#     """
+#     Test: Status done bit (bit 0) behavior.
+    
+#     Checks:
+#     - done = 0 in IDLE, EXECUTE, WAIT
+#     - done = 1 in COMPLETE
+#     - done clears when new operation starts
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_status_hit_bit(dut):
+#     """
+#     Test: Status hit bit (bit 1) behavior.
+    
+#     Checks:
+#     - hit = 0 initially
+#     - hit latches value from hit_in signal
+#     - hit persists in COMPLETE state
+#     - hit clears on next operation
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_status_fsm_state_bits(dut):
+#     """
+#     Test: Status FSM state bits (bits 4:3) encoding.
+    
+#     Checks:
+#     - Correct 2-bit encoding for each state
+#     - State bits update as FSM transitions
+#     - Can track FSM progress by reading status
+#     """
+#     pass
+
+
+# # =============================================================================
+# # END-TO-END OPERATION TESTS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_complete_get_operation(dut):
+#     """
+#     Test: Complete GET operation from start to finish.
+    
+#     Flow:
+#     1. Write key register
+#     2. Write operation register (GET/READ)
+#     3. Wait for done via status polling
+#     4. Read result registers
+#     5. Verify result matches expected value
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_complete_put_operation(dut):
+#     """
+#     Test: Complete PUT operation from start to finish.
+    
+#     Flow:
+#     1. Write key register
+#     2. Write value registers
+#     3. Write operation register (PUT/CREATE)
+#     4. Wait for done
+#     5. Check status for success
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_complete_delete_operation(dut):
+#     """
+#     Test: Complete DELETE operation from start to finish.
+    
+#     Flow:
+#     1. Write key register
+#     2. Write operation register (DELETE)
+#     3. Wait for done
+#     4. Check status
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_sequential_operations(dut):
+#     """
+#     Test: Multiple operations executed in sequence.
+    
+#     Flow:
+#     1. Perform PUT operation
+#     2. Wait for completion
+#     3. Perform GET operation on same key
+#     4. Verify retrieved value matches PUT value
+#     5. Perform DELETE operation
+#     6. Each operation completes successfully
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_operation_with_cache_hit(dut):
+#     """
+#     Test: Operation that results in cache hit.
+    
+#     Checks:
+#     - Provide hit_in = 1 from controller
+#     - Verify status_hit bit is set
+#     - Result value is provided
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_operation_with_cache_miss(dut):
+#     """
+#     Test: Operation that results in cache miss.
+    
+#     Checks:
+#     - Provide hit_in = 0 from controller
+#     - Verify status_hit bit is clear
+#     - Operation still completes
+#     """
+#     pass
+
+
+# # =============================================================================
+# # EDGE CASES AND ERROR CONDITIONS
+# # =============================================================================
+
+# @cocotb.test()
+# async def test_write_during_operation_in_progress(dut):
+#     """
+#     Test: Attempt to write registers while operation is executing.
+    
+#     Checks:
+#     - Start an operation (FSM in WAIT)
+#     - Try to write to key/value registers
+#     - Writes should be accepted by OBI protocol
+#     - Behavior is well-defined (may overwrite for next operation)
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_read_results_before_completion(dut):
+#     """
+#     Test: Read result registers before operation completes.
+    
+#     Checks:
+#     - Start an operation
+#     - Read result registers while in WAIT state
+#     - Should read stale/zero values
+#     - No protocol violation
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_invalid_address_write(dut):
+#     """
+#     Test: Write to invalid/unmapped address.
+    
+#     Checks:
+#     - OBI transaction completes
+#     - No error flag set (interface doesn't check address validity)
+#     - No side effects on valid registers
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_invalid_address_read(dut):
+#     """
+#     Test: Read from invalid/unmapped address.
+    
+#     Checks:
+#     - OBI transaction completes
+#     - Returns zero or undefined value
+#     - No protocol violation
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_sequential_read_write(dut):
+#     """
+#     Test: Sequential read and write transactions.
+    
+#     Checks:
+#     - OBI transactions are sequential (one at a time)
+#     - Each transaction completes properly
+#     - No interference between operations
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_multiword_value_handling(dut):
+#     """
+#     Test: Proper handling of 64-bit values across two 32-bit registers.
+    
+#     Checks:
+#     - Write 64-bit value as two 32-bit words
+#     - value_out correctly reconstructs full 64-bit value
+#     - Read back as two 32-bit words from result registers
+#     - Bit ordering is correct
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_rapid_operation_requests(dut):
+#     """
+#     Test: Submit new operation immediately after previous completes.
+    
+#     Checks:
+#     - First operation completes normally
+#     - Write new operation register in COMPLETE state
+#     - FSM goes directly to EXECUTE (bypasses IDLE)
+#     - Second operation executes correctly
+#     """
+#     pass
+
+
+# @cocotb.test()
+# async def test_long_operation_timeout(dut):
+#     """
+#     Test: Operation that takes many cycles to complete.
+    
+#     Checks:
+#     - FSM stays in WAIT for extended period
+#     - Interface remains responsive to reads
+#     - Eventually completes when done_in asserts
+#     """
+#     pass
 
 
 # =============================================================================
@@ -989,8 +1128,14 @@ def test_interface_runner():
     sources = [
         proj_path / ".." / "src" / "if_types_pkg.sv",
         proj_path / ".." / ".." / "controller" / "src" / "ctrl_types_pkg.sv",
-        proj_path / ".." / "src" / "interface.sv"
+        proj_path / ".." / "src" / "croc_pkg.sv",
+        proj_path / ".." / "src" / "temp.sv", 
     ]
+
+    params = {
+        "KEY_WIDTH": 16,
+        "VALUE_WIDTH": 64,
+    }
 
     runner = get_runner(sim)
 
@@ -1000,7 +1145,8 @@ def test_interface_runner():
         hdl_toplevel="cache_interface",
         always=True, 
         waves=True,
-        timescale=("1ns", "1ps")
+        timescale=("1ns", "1ps"), 
+        parameters=params
     )
 
     # Run tests
