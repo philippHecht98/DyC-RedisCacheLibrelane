@@ -16,107 +16,13 @@ os.environ['COCOTB_ANSI_OUTPUT'] = '1'
 
 
 class OBIInterfaceTester:
-    """
-    Helper class for testing the OBI cache interface.
-    Provides methods for OBI transactions and checking interface state.
-    
-    OBI structs are accessed as packed values. Bit positions:
-    
-    sbr_obi_req_t (74 bits):
-      [73:1] - a channel (sbr_obi_a_chan_t)
-        [73:42] - addr[31:0]
-        [41]    - we
-        [40:37] - be[3:0]
-        [36:5]  - wdata[31:0]
-        [4:2]   - aid[2:0]
-        [1]     - a_optional
-      [0]    - req
-    
-    sbr_obi_rsp_t (39 bits):
-      [38:2] - r channel (sbr_obi_r_chan_t)
-        [38:7] - rdata[31:0]
-        [6:4]  - rid[2:0]
-        [3]    - err
-        [2]    - r_optional
-      [1]    - gnt
-      [0]    - rvalid
-    """
+
 
     def __init__(self, dut):
         self.dut = dut
         self.clk = dut.clk
         self.rst_n = dut.rst_n
-        
-        # OBI struct signals (accessed as packed values)
-        self.obi_req_i = dut.obi_req_i
-        self.obi_rsp_o = dut.obi_rsp_o
-        
-        # Controller-facing ports
-        self.operation_out = dut.operation_out
-        self.key_out = dut.key_out
-        self.value_out = dut.value_out
-        self.start_out = dut.start_out
-        
-        self.result_value_in = dut.result_value_in
-        self.hit_in = dut.hit_in
-        self.done_in = dut.done_in
-        
-        # Transaction ID counter
-        self.next_tid = 0
-        
-        # Register addresses (word-aligned)
-        self.ADDR_OP = 0x00
-        self.ADDR_KEY = 0x04
-        self.ADDR_VAL_BASE = 0x08
-        # Status and result addresses depend on VALUE_WIDTH/ARCHITECTURE ratio
-        # For VALUE_WIDTH=64, ARCHITECTURE=32: NUM_VAL_REGS=2
-        self.ADDR_STATUS = 0x10  # ADDR_VAL_BASE + 2*4
-        self.ADDR_RES_BASE = 0x14  # ADDR_STATUS + 4
 
-    def pack_obi_req(self, req, addr, we, be, wdata, aid):
-        """
-        Pack OBI request struct fields into a 74-bit value.
-        
-        Args:
-            req: Request valid (1 bit)
-            addr: Address (32 bits)
-            we: Write enable (1 bit)
-            be: Byte enable (4 bits)
-            wdata: Write data (32 bits)
-            aid: Transaction ID (3 bits)
-        
-        Returns:
-            74-bit packed value
-        """
-        # Build from LSB to MSB
-        packed = 0
-        packed |= (req & 0x1)                    # bit [0]
-        packed |= (0 & 0x1) << 1                 # a_optional [1]
-        packed |= (aid & 0x7) << 2               # aid[2:0] [4:2]
-        packed |= (wdata & 0xFFFFFFFF) << 5      # wdata[31:0] [36:5]
-        packed |= (be & 0xF) << 37               # be[3:0] [40:37]
-        packed |= (we & 0x1) << 41               # we [41]
-        packed |= (addr & 0xFFFFFFFF) << 42      # addr[31:0] [73:42]
-        return packed
-    
-    def unpack_obi_rsp(self, rsp_value):
-        """
-        Unpack OBI response struct from a 39-bit value.
-        
-        Args:
-            rsp_value: 39-bit packed response value
-        
-        Returns:
-            Tuple of (rvalid, gnt, rdata, rid, err)
-        """
-        rsp = int(rsp_value)
-        rvalid = (rsp >> 0) & 0x1                # bit [0]
-        gnt = (rsp >> 1) & 0x1                   # bit [1]
-        # r_optional at bit [2] - ignored
-        err = (rsp >> 3) & 0x1                   # bit [3]
-        rid = (rsp >> 4) & 0x7                   # bits [6:4]
-        rdata = (rsp >> 7) & 0xFFFFFFFF          # bits [38:7]
-        return (rvalid, gnt, rdata, rid, err)
     async def reset(self):
         """Apply reset pulse to the DUT."""
         self.rst_n.value = 0
@@ -134,144 +40,6 @@ class OBIInterfaceTester:
         await RisingEdge(self.clk)
 
 
-    async def wait_cycles(self, num_cycles: int):
-        """Wait for specified number of clock cycles."""
-        for _ in range(num_cycles):
-            await RisingEdge(self.clk)
-
-    async def obi_write(self, address: int, data: int):
-        """
-        Perform a complete OBI write transaction.
-        
-        OBI Write Protocol:
-        1. Assert req=1, we=1, addr, wdata, be=0xF (all bytes)
-        2. Wait for gnt=1 on same cycle (handshake completes)
-        3. Deassert req on next cycle
-        
-        Args:
-            address: Register address (word-aligned)
-            data: Data value to write
-        
-        Returns:
-            Transaction ID used
-        """
-        # Get transaction ID
-        tid = self.next_tid
-        self.next_tid = (self.next_tid + 1) & 0x7  # 3-bit ID wraps at 8
-        
-        # Pack and assert OBI request
-        packed_req = self.pack_obi_req(
-            req=1,
-            addr=address,
-            we=1,
-            be=0xF,  # All 4 bytes enabled
-            wdata=data,
-            aid=tid
-        )
-        self.obi_req_i.value = packed_req
-        
-        # Wait for grant handshake
-        gnt_seen = False
-        while not gnt_seen:
-            await RisingEdge(self.clk)
-            # Sample response (outside ReadOnly so we can modify signals after)
-            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
-            if gnt == 1:
-                gnt_seen = True
-        
-        # Deassert request after handshake (same cycle as gnt was seen)
-        self.obi_req_i.value = 0
-        
-        return tid
-
-    async def obi_read(self, address: int):
-        """
-        Perform a complete OBI read transaction.
-        
-        OBI Read Protocol:
-        1. Assert req=1, we=0, addr, be=0xF
-        2. Wait for gnt=1 on same cycle (A-channel handshake)
-        3. Deassert req on next cycle
-        4. Wait for rvalid=1 (exactly one cycle after gnt for this subordinate)
-        5. Read rdata when rvalid=1
-        
-        Args:
-            address: Register address (word-aligned)
-        
-        Returns:
-            Tuple of (data, tid, err)
-        """
-        # Get transaction ID
-        tid = self.next_tid
-        self.next_tid = (self.next_tid + 1) & 0x7  # 3-bit ID wraps at 8
-        
-        # Pack and assert OBI request for read
-        packed_req = self.pack_obi_req(
-            req=1,
-            addr=address,
-            we=0,  # Read operation
-            be=0xF,
-            wdata=0,  # Don't care for reads
-            aid=tid
-        )
-        self.obi_req_i.value = packed_req
-        
-        # Wait for grant handshake (A-channel)
-        gnt_seen = False
-        while not gnt_seen:
-            await RisingEdge(self.clk)
-            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
-            if gnt == 1:
-                gnt_seen = True
-        
-        # Deassert request after A-channel handshake
-        self.obi_req_i.value = 0
-        
-        # Wait for R-channel response (rvalid=1)
-        # For this subordinate, rvalid asserts exactly one cycle after gnt
-        while True:
-            await RisingEdge(self.clk)
-            await ReadOnly()
-            rvalid, gnt, rdata, rid, err = self.unpack_obi_rsp(self.obi_rsp_o.value)
-            if rvalid == 1:
-                break
-        
-        return (rdata, rid, err)
-
-    async def poll_status(self, timeout_cycles: int = 100):
-        """
-        Poll the status register until done bit is set or timeout.
-        
-        Args:
-            timeout_cycles: Maximum cycles to wait
-        
-        Returns:
-            Status register value when done, or None if timeout
-        """
-        for _ in range(timeout_cycles):
-            status, _, _ = await self.obi_read(self.ADDR_STATUS)
-            if self.get_done_bit(status):
-                return status
-            await self.wait_cycles(1)
-        return None
-
-    def get_fsm_state(self, status_reg: int):
-        """Extract FSM state from status register."""
-        return (status_reg >> 3) & 0x3
-
-    def get_done_bit(self, status_reg: int):
-        """Extract done bit from status register."""
-        return status_reg & 0x1
-
-    def get_hit_bit(self, status_reg: int):
-        """Extract hit bit from status register."""
-        return (status_reg >> 1) & 0x1
-
-    def get_error_bit(self, status_reg: int):
-        """Extract error bit from status register."""
-        return (status_reg >> 2) & 0x1
-
-
 # =============================================================================
 # RESET AND INITIALIZATION TESTS
 # =============================================================================
@@ -287,11 +55,6 @@ async def test_reset_initialization(dut):
     - All output signals are zero
     - Status register shows IDLE state with no flags set
     """
-    # Debug: Print available signals
-    dut._log.info("=== Available DUT signals ===")
-    for item in dir(dut):
-        if not item.startswith('_'):
-            dut._log.info(f"  {item}")
     
     tester = OBIInterfaceTester(dut)
     
@@ -1121,15 +884,20 @@ def test_interface_runner():
     Cocotb test runner for the cache interface module.
     Sets up simulation environment and executes all tests.
     """
-    sim = os.getenv("SIM", "icarus")
-    proj_path = Path(__file__).resolve().parent
+    sim = os.getenv("SIM", "verilator")
+    proj_path = Path(__file__).resolve().parent 
     
     # Source files for cache interface
     sources = [
         proj_path / ".." / "src" / "if_types_pkg.sv",
         proj_path / ".." / ".." / "controller" / "src" / "ctrl_types_pkg.sv",
-        proj_path / ".." / "src" / "croc_pkg.sv",
         proj_path / ".." / "src" / "temp.sv", 
+        proj_path / ".." / "src" / "a_channel.sv",
+        proj_path / ".." / "src" / "r_channel.sv",
+    ]
+
+    include_dirs = [
+        proj_path / ".." / ".." / ".." / "obi" / "include"
     ]
 
     params = {
@@ -1145,7 +913,8 @@ def test_interface_runner():
         always=True, 
         waves=True,
         timescale=("1ns", "1ps"), 
-        parameters=params
+        parameters=params, 
+        includes=include_dirs
     )
 
     # Run tests

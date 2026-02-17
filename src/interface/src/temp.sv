@@ -1,217 +1,208 @@
 
 module obi_cache_interface #(
-    parameter ARCHITECTURE = 64 // Bits per register in the interface
+    parameter ARCHITECTURE = 32 // Bits per register in the interface
 ) (
     input logic clk, 
     input logic rst_n, 
 
     /*   OBI interface signals   */
-
     // Incoming wires from master (CPU)
-    input croc_pkg::obi_request_t obi_req,
-    input logic rready, // Indicates master is ready to accept response
+    input if_types_pkg::obi_req_t obi_req,
 
     // Outgoing wires to master (CPU)
-    output croc_pkg::obi_response_t obi_resp,
-    output logic gnt, // Grant signal to master indicating interface accepted the request
+    output if_types_pkg::obi_rsp_t obi_resp,
 
     /*   Controller interface signals (simplified for now - assuming data always available)   */
-    output ctrl_types_pkg::operation_e operation_out,
-    output logic [ARCHITECTURE - 3 - 1:0] key_out,  // ACTUAL_KEY_WIDTH = ARCHITECTURE - OP_BITS
-    output logic [2 * ARCHITECTURE - 1:0] value_out, // VALUE_WIDTH = 2 * ARCHITECTURE
-    input logic ready_in,
-    input logic op_succ_in
+    // Incoming wires from controller 
+    input logic                     ready_in,
+    input logic                     op_succ_in,
+    input logic [VALUE_WIDTH-1:0]   value_in, // Data read from memory (for read operations)
+
+    // Outgoing wires to controller
+    output ctrl_types_pkg::operation_e              operation_out,
+    output logic [if_types_pkg::KEY_WIDTH-1:0]      key_out,  // ACTUAL_KEY_WIDTH = ARCHITECTURE - OP_BITS
+    output logic [if_types_pkg::VALUE_WIDTH-1:0]    value_out // VALUE_WIDTH = 2 * ARCHITECTURE
 );
 
     import if_types_pkg::*;
-    import croc_pkg::*;
     import ctrl_types_pkg::*;
 
-    // =========================================================================
-    // Parameter Calculations
-    // =========================================================================
-    // Calculate the number of bits needed for operation encoding
-    localparam OP_BITS = 3; // operation_e uses logic [2:0] (NOOP, READ, UPSERT, DELETE)
-    localparam KEY_WIDTH = ARCHITECTURE;
-    localparam ACTUAL_KEY_WIDTH = ARCHITECTURE - OP_BITS; // Key width after removing operation bits
-    localparam VALUE_WIDTH = 2 * ARCHITECTURE; // Value is twice the architecture width
 
     // =========================================================================
-    // Internal Registers
+    // Local parameters
+    // =========================================================================
+    localparam TOTAL_INPUT_REGISTER_LENGTH  = VALUE_WIDTH + KEY_WIDTH + OP_WIDTH;
+    localparam OPERATION_WRITE_OFFSET       = TOTAL_INPUT_REGISTER_LENGTH - OP_WIDTH; // Operation code is in the highest bits
+    localparam KEY_OFFSET                   = VALUE_WIDTH; // Key is in the middle bits
+    localparam VALUE_OFFSET                 = 0; // Value is in the lowest bits
+
+    // =========================================================================
+    // Internal Stuff
     // =========================================================================
     
     // State machine state
     if_types_pkg::if_state_e state, next_state;
-
-    // Registers to hold the incoming request from master (CPU-writable)
-    ctrl_types_pkg::operation_e operation_in_from_master_reg; // Operation type extracted from address MSBs
-    reg [ACTUAL_KEY_WIDTH-1:0] key_in_from_master_reg; // Key extracted from address LSBs
-    reg [VALUE_WIDTH-1:0] value_in_from_master_reg; // Value from write data
-
-    // Registers to hold results for read responses (simplified - assume always available)
-    reg [VALUE_WIDTH-1:0] result_value_reg; // Result data to return for read operations
-    reg op_succ_reg; // Operation success status
-
-    // OBI protocol tracking registers
-    logic req_accepted_q; // Tracks if a request was accepted in previous cycle (for rvalid timing)
-    logic req_is_read_q;  // Tracks if accepted request was a read operation
-
-    // =========================================================================
-    // Address Decoding - Extract operation and key from address
-    // =========================================================================
-    // Address format: [MSB bits = operation (3 bits)] [LSB bits = key (ACTUAL_KEY_WIDTH bits)]
-    logic [OP_BITS-1:0] addr_operation;
-    logic [ACTUAL_KEY_WIDTH-1:0] addr_key;
     
-    assign addr_operation = obi_req.obi_master_addr[ARCHITECTURE-1 : ARCHITECTURE-OP_BITS];
-    assign addr_key = obi_req.obi_master_addr[ACTUAL_KEY_WIDTH-1 : 0];
+    // Internal grant signal (combinational logic)
+    logic internal_gnt;
+    assign internal_gnt = (state == IF_ST_IDLE); // Grant when in idle state and request is valid
+
+    // Registers to hold the current request data
+    reg [TOTAL_INPUT_REGISTER_LENGTH-1:0] current_request;
+
+    // Registers to hold the response data from controller
+    reg [VALUE_WIDTH-1:0]   rdata_from_controller;
+    reg                     err_from_controller;
+    
+    // logical wires to hold the decoded operation, key, and value from the current request
+    logic [OP_WIDTH-1:0]     decoded_operation;
+    logic [KEY_WIDTH-1:0]    decoded_key;
+    logic [VALUE_WIDTH-1:0]  decoded_value;
+
+    assign decoded_operation    = current_request[OPERATION_WRITE_OFFSET +: OP_WIDTH];
+    assign decoded_key          = current_request[KEY_OFFSET +: KEY_WIDTH];
+    assign decoded_value        = current_request[VALUE_OFFSET +: VALUE_WIDTH];
+    
+    logic [ARCHITECTURE-1:0] addr_from_a_chan;
+    logic [ARCHITECTURE-1:0] wdata_from_a_chan;
+
+    logic [ARCHITECTURE-1:0] rdata_to_r_chan;
+    logic                    rvalid_to_r_chan;
+    logic                    err_to_r_chan;
+
+    // initalize a channel module
+    a_channel #(
+        .ADDR_WIDTH(ARCHITECTURE),
+        .DATA_WIDTH(ARCHITECTURE)
+    ) a_chan_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .obi_req(obi_req),
+        .internal_gnt(internal_gnt),
+        .addr_out(addr_from_a_chan), // Connect to controller address input
+        .wdata_out(wdata_from_a_chan) // Connect to controller write data input
+    );
+
+    // initalize r channel module
+    r_channel #(
+        .DATA_WIDTH(ARCHITECTURE)
+    ) r_chan_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .obi_resp(obi_resp),
+        .internal_gnt(internal_gnt),
+        .rvalid_in(rvalid_to_r_chan), // Connect ready signal from controller to rvalid input
+        .rdata_in(rdata_to_r_chan), // Connect read data from controller to rdata input
+        .err_in(err_to_r_chan) // Connect error signal from controller to err input
+    );
 
     // =========================================================================
-    // OBI A-Channel: Request Acceptance and Register Write Logic
-    // =========================================================================
-    // Capture incoming write requests when interface is ready (IDLE state)
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            // Reset all incoming request registers
-            value_in_from_master_reg <= 'd0;
-            key_in_from_master_reg <= 'd0;
-            operation_in_from_master_reg <= NOOP;
-        end 
-        // Check if master is making a write request and we're granting it
-        else if (obi_req.obi_master_request && gnt && obi_req.obi_master_write_enabled) begin
-            // Capture the write data from master
-            value_in_from_master_reg <= obi_req.obi_master_wdata;
-            // Extract and store the key from address LSBs
-            key_in_from_master_reg <= addr_key;
-            // Extract and store the operation from address MSBs with proper type casting
-            operation_in_from_master_reg <= ctrl_types_pkg::operation_e'(addr_operation);
-        end
-    end
-
-    // =========================================================================
-    // OBI Protocol Tracking - Request Handshake and Response Timing
-    // =========================================================================
-    // Track accepted requests for proper R-channel timing (rvalid should be 1 cycle after gnt)
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            req_accepted_q <= 1'b0;
-            req_is_read_q <= 1'b0;
-        end else begin
-            // Request is accepted when both req and gnt are high
-            req_accepted_q <= obi_req.obi_master_request && gnt;
-            // Track if it was a read operation (write_enabled = 0)
-            req_is_read_q <= obi_req.obi_master_request && gnt && !obi_req.obi_master_write_enabled;
-        end
-    end
-
-    // =========================================================================
-    // OBI R-Channel: Read Response Logic
-    // =========================================================================
-    // Response is valid one cycle after request acceptance (OBI protocol requirement)
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            obi_resp.obi_slave_response_data <= 'd0;
-            obi_resp.obi_slave_response_valid <= 1'b0;
-            obi_resp.obi_slave_response_error <= 1'b0;
-        end else begin
-            // Assert rvalid one cycle after accepting a request
-            obi_resp.obi_slave_response_valid <= req_accepted_q;
-            
-            // For read operations, return the result data
-            if (req_is_read_q) begin
-                obi_resp.obi_slave_response_data <= result_value_reg;
-            end else begin
-                // For write operations, response data can be don't care (return 0)
-                obi_resp.obi_slave_response_data <= 'd0;
-            end
-            
-            // No errors for now (simplified)
-            obi_resp.obi_slave_response_error <= 1'b0;
-        end
-    end
-
-    // =========================================================================
-    // Controller Interface Outputs
-    // =========================================================================
-    // Forward the registered request data to controller
-    assign operation_out = operation_in_from_master_reg; // Operation type (READ, UPSERT, DELETE)
-    assign key_out = key_in_from_master_reg;             // Key value
-    assign value_out = value_in_from_master_reg;         // Value data
-
-    // =========================================================================
-    // FSM: Interface State Machine (Simplified - assuming data always ready)
-    // =========================================================================
-    // Combinational logic for next state and grant signal
+    // State Machine
+    // =========================================================================    
     always_comb begin
-        // Default values
-        next_state = state;
-        gnt = 1'b0;
+        // Default values for outputs and next state
+        next_state = state; 
+        operation_out = ctrl_types_pkg::NOOP; // Default to no operation
+        key_out = '0;
+        value_out = '0;
+
+        rdata_to_r_chan = '0;
+        rvalid_to_r_chan = 1'b0;
+        err_to_r_chan = 1'b0;
         
-        case (state)
-            // IDLE: Wait for incoming request from master
-            IF_ST_IDLE: begin
-                // Accept request if master is requesting and controller is ready
-                if (obi_req.obi_master_request && ready_in) begin
-                    gnt = 1'b1;  // Grant the request (handshake with master)
-                    next_state = IF_ST_WAIT; // Move to execute to process the request
-                end else begin
-                    gnt = 1'b0;  // Not ready to accept
-                    next_state = IF_ST_IDLE; // Stay in idle
-                end
-            end
+        // Wait for master to set OBI req to 1 
+        // internal grant signal to be 1 
+        if (!obi_req.req && !internal_gnt) begin
+            next_state = if_types_pkg::IF_ST_IDLE;
 
-            // WAIT: Waiting for controller to finish (unused in simplified version)
-            IF_ST_WAIT: begin
-                // This state would wait for done_in signal from controller
-                // For now, immediately go to complete
-                next_state = IF_ST_COMPLETE;
-                gnt = 1'b0;
-            end
-
-            // COMPLETE: Operation finished, results available for read
-            IF_ST_COMPLETE: begin
-                // Return to IDLE to accept next request
-                next_state = IF_ST_IDLE;
-                gnt = 1'b0;
-            end
-
-            // Default case: return to IDLE
-            default: begin
-                next_state = IF_ST_IDLE;
-                gnt = 1'b0;
-            end
-        endcase
-    end
-
-    // =========================================================================
-    // FSM: State Register
-    // =========================================================================
-    // Sequential logic for state transitions
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            state <= IF_ST_IDLE; // Reset to IDLE state
-        else
-            state <= next_state; // Update to next state
-    end
-
-    // =========================================================================
-    // Result Data Management (Simplified - assume data always available)
-    // =========================================================================
-    // Store result data from controller for read responses
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            result_value_reg <= 'd0;
-            op_succ_reg <= 1'b0;
+        // handshake initialized
         end else begin
-            // For simplified version, we can store dummy data or echo back the value
-            // In full implementation, this would capture actual controller results
-            if (state == IF_ST_WAIT) begin
-                // Simplified: echo back the written value as the result
-                // In real implementation: result_value_reg <= actual_controller_result
-                result_value_reg <= value_in_from_master_reg;
-                op_succ_reg <= op_succ_in; // Assume success from controller input
-            end
+            case (state)
+                // Wait in idle state until master initiates a complete request
+                // When master writes to the operation register, transition to processing state
+                // Set 
+                IF_ST_IDLE: begin
+                    if (addr_from_a_chan == OPERATION_WRITE_OFFSET) begin
+                        next_state      = IF_ST_PROCESS;
+
+                        // Setting the outputs for the controller 
+                        // based on the decoded values from the current_request register
+                        key_out         = decoded_key;
+                        value_out       = decoded_value;
+
+                        // Cast to enum type
+                        operation_out   = ctrl_types_pkg::operation_e'(decoded_operation); 
+                    end
+
+                    // still allow master to write the full request data into
+                    // the current_request register while in idle state, 
+                    // yet do not transition until the operation code is written
+                    else begin
+                        next_state = IF_ST_IDLE;
+                        // Capture incoming request data into current_request register
+                        current_request[addr_from_a_chan +: ARCHITECTURE] = wdata_from_a_chan;
+
+                        // set r-channel to saved the read data                        
+                        rdata_to_r_chan = '0; 
+                        err_to_r_chan = 1'b0;
+                    end
+                end
+
+                // In the processing state, wait for the controller to 
+                IF_ST_PROCESS: begin
+                    // If controller signals that the data on the wires is ready, 
+                    if (ready_in) begin
+                        next_state      = IF_ST_COMPLETE;
+                        rdata_to_r_chan = rdata_from_controller[addr_from_a_chan +: ARCHITECTURE]; // Send the appropriate portion of the read data back to r-channel to be sent back to master
+                        rvalid_to_r_chan = 1'b1; // Signal to r-channel that the read data is valid and can be sent back to master
+                        err_to_r_chan   = err_from_controller; // If operation was not successful, send error signal to r-channel to be sent back to master
+                    end
+
+                    // Controller is still processing request, 
+                    // stay in this state
+                    else begin
+                        next_state = IF_ST_PROCESS;
+                    end
+                end
+                
+                IF_ST_COMPLETE: begin
+                    if (obi_req.rready) begin
+                        next_state = IF_ST_IDLE;
+                    end
+                    // Still waiting for master to accept response
+                    // stay in complete state until master is ready to accept response
+                    else begin
+                        next_state = IF_ST_COMPLETE;
+                    end
+                end
+
+                default: next_state = IF_ST_IDLE;
+            endcase
         end
     end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= IF_ST_IDLE;
+        end else begin
+            state <= next_state;
+        end
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rdata_from_controller <= '0;
+            err_from_controller <= 1'b0;
+        end else if (state == IF_ST_PROCESS) begin
+            // Capture read data from controller
+            rdata_from_controller <= value_in; 
+
+            // Capture operation success as error signal (assuming op_succ_in is 1 for success, 0 for failure)
+            err_from_controller <= !op_succ_in; 
+        end else begin
+            rdata_from_controller <= '0;
+            err_from_controller <= 1'b0;
+        end
+    end    
 
 endmodule
