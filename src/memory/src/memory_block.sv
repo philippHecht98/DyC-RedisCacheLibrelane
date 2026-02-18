@@ -29,13 +29,13 @@ module memory_block #(
     // Data line output
     output logic [VALUE_WIDTH-1:0] value_out,
     output logic [NUM_ENTRIES-1:0] index_out, // Indicates which cell(s) matched the key (for read/delete)
-    output logic hit
+    output logic hit,
+    output logic [NUM_ENTRIES-1:0] used_entries
     //output logic [TTL_WIDTH-1:0] ttl_out
 );
 
     logic [KEY_WIDTH-1:0] cell_key_out [NUM_ENTRIES-1:0];
     logic [VALUE_WIDTH-1:0] cell_value_out [NUM_ENTRIES-1:0];
-    logic [NUM_ENTRIES-1:0] used_entries;
     
     // Per-cell reset: global reset OR targeted delete
     // When delete_in is active, the cell matching key_in gets its rst_n pulled low
