@@ -25,7 +25,7 @@ module r_channel #(
     reg                  rvalid_reg;
     reg                  err_reg;
 
-    // Write logic - A channel
+    // Read logic - R channel
     always_ff @(posedge clk or negedge rst_n) begin
         // reset 
         if (!rst_n) begin
