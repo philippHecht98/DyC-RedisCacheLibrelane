@@ -14,9 +14,9 @@ module obi_cache_interface #(
 
     /*   Controller interface signals (simplified for now - assuming data always available)   */
     // Incoming wires from controller 
-    input logic                     ready_in,
-    input logic                     op_succ_in,
-    input logic [VALUE_WIDTH-1:0]   value_in, // Data read from memory (for read operations)
+    input logic                                     ready_in,
+    input logic                                     op_succ_in,
+    input logic [if_types_pkg::VALUE_WIDTH-1:0]     value_in, // Data read from memory (for read operations)
 
     // Outgoing wires to controller
     output ctrl_types_pkg::operation_e              operation_out,
