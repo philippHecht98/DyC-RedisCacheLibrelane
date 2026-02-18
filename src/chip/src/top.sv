@@ -1,157 +1,109 @@
-module top(
-    `ifdef USE_POWER_PINS
-    inout wire IOVDD,
-    inout wire IOVSS,
-    inout wire VDD,
-    inout wire VSS,
-    `endif
+module chip #(
+    parameter ARCHITECTURE = 32,
+    parameter NUM_OPERATIONS = 2,
+    parameter NUM_ENTRIES = 16,
+    parameter KEY_WIDTH = 16,
+    parameter VALUE_WIDTH = 64,
 
-    inout clk_PAD,
-    inout rst_n_PAD,
-    inout button_PAD,
-    inout [3:0] X_PADs,
+    /// The configuration of the subordinate ports (input ports).
+    parameter obi_pkg::obi_cfg_t ObiCfg      = obi_pkg::ObiDefaultConfig,
+    /// The request struct for the subordinate ports (input ports).
+    parameter type               obi_req_t = logic,
+    /// The response struct for the subordinate ports (input ports).
+    parameter type               obi_rsp_t = logic,
+)(
+    input logic clk,
+    input logic rst_n,
 
-    output [6:0] seg0_PADs,
-    output [6:0] seg1_PADs
+    // OBI Interface
+    input obi_req_t obi_req_i,
+    output obi_rsp_t obi_resp_o
 );
 
-logic clk;
-logic rst_n;
-logic button;
-logic [3:0] X;
-logic [6:0] seg0;
-logic [6:0] seg1;
-// Power/ground pad instances
-generate
-for (genvar i=0; i<1; i++) begin : iovdd_pads
-    (* keep *)
-    sg13g2_IOPadIOVdd iovdd_pad  (
-        `ifdef USE_POWER_PINS
-        .iovdd  (IOVDD),
-        .iovss  (IOVSS),
-        .vdd    (VDD),
-        .vss    (VSS)
-        `endif
+    // Imports
+    import if_types_pkg::*;
+    import ctrl_types_pkg::*;
+
+    // Internal Signals
+    // Interface <-> Controller
+    operation_e              ctrl_op;
+    logic                    ctrl_rdy;
+    logic                    ctrl_succ;
+    
+    // Interface <-> Memory
+    logic [KEY_WIDTH-1:0]    mem_key;
+    logic [VALUE_WIDTH-1:0]  mem_val_wr;
+    logic [VALUE_WIDTH-1:0]  mem_val_rd;
+
+    // Controller <-> Memory
+    logic [NUM_ENTRIES-1:0]  mem_used;
+    logic [NUM_ENTRIES-1:0]  mem_idx_match; // From Memory (Hit Index)
+    logic [NUM_ENTRIES-1:0]  mem_idx_sel;   // From Controller (Select Index)
+    logic                    mem_hit;
+    logic                    mem_we;
+    logic                    mem_sel;
+    logic                    mem_del;
+
+    obi_cache_interface #(
+        .ARCHITECTURE(ARCHITECTURE),
+        .OBI_REQ_T(obi_req_t),
+        .OBI_RSP_T(obi_rsp_t),
+        .OBI_CONFG(ObiCfg)
+    ) u_obi (
+        .clk(clk),
+        .rst_n(rst_n),
+
+        .obi_req(obi_req_i),
+        .obi_resp(obi_resp_o),
+
+        .ready_in(ctrl_rdy),
+        .op_succ_in(ctrl_succ),
+        .value_in(mem_val_rd),
+
+        .operation_out(ctrl_op),
+        .key_out(mem_key),
+        .value_out(mem_val_wr)
     );
-end
-for (genvar i=0; i<1; i++) begin : iovss_pads
-    (* keep *)
-    sg13g2_IOPadIOVss iovss_pad  (
-        `ifdef USE_POWER_PINS
-        .iovdd  (IOVDD),
-        .iovss  (IOVSS),
-        .vdd    (VDD),
-        .vss    (VSS)
-        `endif
+
+    controller #(
+        .NUM_ENTRIES(NUM_ENTRIES)
+    ) u_ctrl (
+        .clk(clk),
+        .rst_n(rst_n),
+        .used(mem_used),
+        .idx_in(mem_idx_match),
+        .hit(mem_hit),
+        .operation_in(ctrl_op),
+
+        .idx_out(mem_idx_sel),
+        .write_out(mem_we),
+        .select_out(mem_sel),
+        .delete_out(mem_del),
+        .rdy_out(ctrl_rdy),
+        .op_succ(ctrl_succ)
     );
-end
-for (genvar i=0; i<1; i++) begin : vdd_pads
-    (* keep *)
-    sg13g2_IOPadVdd vdd_pad  (
-        `ifdef USE_POWER_PINS
-        .iovdd  (IOVDD),
-        .iovss  (IOVSS),
-        .vdd    (VDD),
-        .vss    (VSS)
-        `endif
-    );
-end
-for (genvar i=0; i<1; i++) begin : vss_pads
-    (* keep *)
-    sg13g2_IOPadVss vss_pad  (
-        `ifdef USE_POWER_PINS
-        .iovdd  (IOVDD),
-        .iovss  (IOVSS),
-        .vdd    (VDD),
-        .vss    (VSS)
-        `endif
-    );
-end
-endgenerate
-// clk PAD instance
-sg13g2_IOPadIn clk_pad (
-    `ifdef USE_POWER_PINS
-    .iovdd  (IOVDD),
-    .iovss  (IOVSS),
-    .vdd    (VDD),
-    .vss    (VSS),
-    `endif
-    .p2c    (clk),
-    .pad    (clk_PAD)
-);
-//reset PAD instance
-sg13g2_IOPadIn rst_n_pad (
-    `ifdef USE_POWER_PINS
-    .iovdd  (IOVDD),
-    .iovss  (IOVSS),
-    .vdd    (VDD),
-    .vss    (VSS),
-    `endif
-    .p2c    (rst_n),
-    .pad    (rst_n_PAD)
-);
-//X inputs PAD instance
-generate
-for (genvar i=0; i<4; i++) begin : x_pads
-    sg13g2_IOPadIn x_pad (
-        `ifdef USE_POWER_PINS
-        .iovdd  (IOVDD),
-        .iovss  (IOVSS),
-        .vdd    (VDD),
-        .vss    (VSS),
-        `endif
-        .p2c    (X[i]),
-        .pad    (X_PADs[i])
-    );
-end
-endgenerate
-//Button input PAD instance
-sg13g2_IOPadIn button_pad (
-    `ifdef USE_POWER_PINS
-    .iovdd  (IOVDD),
-    .iovss  (IOVSS),
-    .vdd    (VDD),
-    .vss    (VSS),
-    `endif
-    .p2c    (button),
-    .pad    (button_PAD)
-);
-//Outputs PADs
-generate
-for (genvar i=0; i<7; i++) begin : seg0_pads
-    sg13g2_IOPadOut30mA seg0_pad (
-        `ifdef USE_POWER_PINS
-        .vss    (VSS),
-        .vdd    (VDD),
-        .iovss  (IOVSS),
-        .iovdd  (IOVDD),
-        `endif
-        .c2p (seg0[i]),
-        .pad (seg0_PADs[i])
-    );
-end
-endgenerate
-generate
-for (genvar i=0; i<7; i++) begin : seg1_pads
-    sg13g2_IOPadOut30mA seg1_pad (
-        `ifdef USE_POWER_PINS
-        .vss    (VSS),
-        .vdd    (VDD),
-        .iovss  (IOVSS),
-        .iovdd  (IOVDD),
-        `endif
-        .c2p (seg1[i]),
-        .pad (seg1_PADs[i])
-    );
-end
-endgenerate
-chip u_chip (
-    .clk(clk),
-    .rst_n(rst_n),
-    .button(button),
-    .X(X),
-    .seg0(seg0),
-    .seg1(seg1)
-);
+
+    memory_block #(
+        .NUM_OPERATIONS(NUM_OPERATIONS),
+        .NUM_ENTRIES(NUM_ENTRIES),
+        .KEY_WIDTH(KEY_WIDTH),
+        .VALUE_WIDTH(VALUE_WIDTH)
+    ) u_mem (
+        .clk(clk),
+        .rst_n(rst_n),
+
+        .write_in(mem_we),
+        .select_by_index(mem_sel),
+        .delete_in(mem_del),
+
+        .key_in(mem_key),
+        .value_in(mem_val_wr),
+        .index_in(mem_idx_sel),
+
+        .value_out(mem_val_rd),
+        .index_out(mem_idx_match),
+        .hit(mem_hit),
+        .used_entries(mem_used)
+    ); 
 
 endmodule
