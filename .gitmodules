@@ -7,3 +7,6 @@
 [submodule "riscv"]
 	path = riscv
 	url = https://github.com/ultraembedded/riscv.git
+[submodule "obi"]
+	path = obi
+	url = https://github.com/pulp-platform/obi.git
