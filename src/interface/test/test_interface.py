@@ -1122,7 +1122,7 @@ def test_interface_runner():
     sources = [
         proj_path / ".." / "src" / "if_types_pkg.sv",
         proj_path / ".." / ".." / "controller" / "src" / "ctrl_types_pkg.sv",
-        proj_path / ".." / "src" / "temp.sv", 
+        proj_path / ".." / "src" / "obi_interface.sv", 
         proj_path / ".." / "src" / "a_channel.sv",
         proj_path / ".." / "src" / "r_channel.sv",
     ]
