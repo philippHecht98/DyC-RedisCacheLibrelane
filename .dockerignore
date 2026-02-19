@@ -1,0 +1,6 @@
+.devcontainer
+.github
+design
+docs
+Dockerfile
+**/by_id/

@@ -1,0 +1,28 @@
+# Python dependencies for development and testing
+
+# CoCoTB - Coroutine-based Cosimulation TestBench
+cocotb>=1.8.0
+cocotb-bus>=0.2.1
+
+# Simulators support
+# cocotb automatically detects: Icarus Verilog, Verilator, GHDL, etc.
+
+# Testing and coverage
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0
+
+# Code quality
+pylint>=2.15.0
+black>=23.0.0
+isort>=5.12.0
+
+# Waveform viewing and analysis
+wavedrom>=2.0.3
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.2.0
+
+# Utilities
+pyyaml>=6.0
