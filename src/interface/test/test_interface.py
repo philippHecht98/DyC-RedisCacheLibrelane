@@ -997,10 +997,6 @@ async def test_obi_read_whole_value(dut):
     # Apply reset
     await tester.reset()
 
-    
-
-    
-
 
 @cocotb.test()
 async def test_obi_read_during_process_state(dut):

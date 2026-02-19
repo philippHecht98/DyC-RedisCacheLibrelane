@@ -231,4 +231,12 @@ module obi_cache_interface #(
         end
     end
 
+    always_ff @(posedge clk or negedge rst_n) begin : blockName
+        if (!rst_n) begin
+            current_request <= '0;
+        end else begin
+            current_request <= current_request_wires;
+        end
+    end
+
 endmodule
