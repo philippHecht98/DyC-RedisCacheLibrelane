@@ -3,7 +3,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly
+from cocotb.triggers import RisingEdge, FallingEdge, ReadOnly, ClockCycles
 from cocotb_tools.runner import get_runner
 
 from enum import Enum
@@ -99,6 +99,69 @@ class TopTester:
         rdata = (val >> TopTester._RDATA_LSB) & 0xFFFFFFFF
         return (rdata, err, rid, r_optional, gnt, rvalid)
 
+    @staticmethod
+    def build_obi_req(addr=0, we=0, be=0, wdata=0, aid=0, a_optional=0,
+                      req=0, rready=0):
+        """Construct the integer value of a packed obi_req_t."""
+        val  = (rready   & 0x1)          << TopTester._RREADY_BIT
+        val |= (req      & 0x1)          << TopTester._REQ_BIT
+        val |= (a_optional & 0x1)        << TopTester._A_OPT_BIT
+        val |= (aid      & 0x7)          << TopTester._AID_LSB
+        val |= (wdata    & 0xFFFFFFFF)   << TopTester._WDATA_LSB
+        val |= (be       & 0xF)          << TopTester._BE_LSB
+        val |= (we       & 0x1)          << TopTester._WE_BIT
+        val |= (addr     & 0xFFFFFFFF)   << TopTester._ADDR_LSB
+        return val
+
+
+    async def obi_write(self, address, data, **kwargs):
+            """Perform an OBI write transaction."""
+            await FallingEdge(self.clk)
+            self.obi_req_i.value = self.build_obi_req(
+                addr=address, wdata=data, **kwargs
+            )
+
+    async def write_set_master_data_with_handshake(self, address, data, **kwargs):
+        """Perform an OBI write transaction and wait for gnt."""
+        await FallingEdge(self.clk)
+
+        kwargs['req'] = kwargs.get('req', 1)
+        kwargs['we'] = kwargs.get('we', 1)
+
+        kwargs
+
+        self.obi_req_i.value = self.build_obi_req(
+            addr=address, wdata=data, **kwargs
+        )
+        await RisingEdge(self.clk)  # Wait for req to be registered
+        await ReadOnly()  # Wait for combinational logic to settle
+
+        # wait one more cycle for the internal register to hold the value
+        await RisingEdge(self.clk)
+        await ReadOnly()  # Wait for combinational logic to settle
+
+    def log_obi_status(self):
+        """Log internal state of OBI Interface for debugging."""
+        self.dut._log.info("--- OBI Interface Status ---")
+        self.dut._log.info(f"State: {self.u_obi.state.value}")
+        self.dut._log.info("")
+        self.dut._log.info(f"Decoded Op: {self.u_obi.decoded_operation.value}")
+        self.dut._log.info(f"Decoded Key: {self.u_obi.decoded_key.value}")
+        self.dut._log.info(f"Decoded Val: {self.u_obi.decoded_value.value}")
+        self.dut._log.info(f"Current Request: {self.u_obi.current_request.value}")
+        self.dut._log.info("")
+        self.dut._log.info(f"Internal_grant Val: {self.u_obi.internal_gnt.value}")
+        self.dut._log.info(f"Write or Read Operation: {self.u_obi.write_or_read_operation.value}")
+        self.dut._log.info(f"Ready in: {self.u_obi.ready_in.value}")
+        self.dut._log.info("")
+        self.dut._log.info(f"Next State: {self.u_obi.next_state.value}")
+        self.dut._log.info("----------------------------\n")
+
+    async def wait_cycles(self, num_cycles: int):
+        """Wait for specified number of clock cycles."""
+        for _ in range(num_cycles):
+            await RisingEdge(self.clk)
+
 @cocotb.test()
 async def test_reset(dut):
     """Test: Verify reset behavior of the top module."""
@@ -152,6 +215,59 @@ async def test_reset(dut):
     
 
     dut._log.info("✓ Reset test passed")
+
+@cocotb.test()
+async def test_insert_simple(dut):
+    """Test: Insert a value into the cache and verify success."""
+    tester = TopTester(dut)
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    await tester.reset()
+
+    assert tester.u_obi.internal_gnt.value == 1, "Internal grant should be 1 before transaction"
+
+
+    #await tester.obi_write(address=0x00, data=0x01, req=1, we=1)
+    #await tester.write_set_master_data_with_handshake(address=0x00, data=0x01, req=1, we=1)
+
+    val_lsb = 0xDEADBEEF
+    val_msb = 0xCAFEBABE
+    key     = 0x12345678
+    op_upsert = 0x2
+
+    # 1. Write Value LSB
+    await tester.write_set_master_data_with_handshake(address=0x00, data=val_lsb)
+    # 2. Write Value MSB
+    await tester.write_set_master_data_with_handshake(address=0x04, data=val_msb)
+    # 3. Write Key
+    await tester.write_set_master_data_with_handshake(address=0x08, data=key)
+    # 4. Write Opcode (triggers the operation). Set rready=1 to allow completion.
+    await tester.write_set_master_data_with_handshake(address=0x0C, data=op_upsert, rready=1)
+    #await tester.write_set_master_data_with_handshake(address=tester._KEY_OFFSET, data=0x01, req=1, we=1)
+
+    assert tester.u_obi.state.value == OBIState.IDLE.value, "FSM should still be in idle as Operation register was not set"
+
+
+    print(f"Done writing")
+    tester.log_obi_status()
+
+    await RisingEdge(tester.clk)
+    await ReadOnly()  # Wait for combinational logic to settle
+    
+    tester.log_obi_status()
+
+    await RisingEdge(tester.clk)
+    await ReadOnly()  # Wait for combinational logic to settle
+    
+    tester.log_obi_status()
+
+    assert tester.u_obi.internal_gnt.value == 1, "gnt should be asserted for key register write"
+    
+    used = tester.u_mem.used_entries.value
+    assert used == 1, f"Expected 1 used entry, got {used}"
+    
+    dut._log.info("✓ Insert test passed")
 
 def test_top_runner():
     sim = os.getenv("SIM", "icarus")
