@@ -6,11 +6,11 @@ module chip #(
     parameter VALUE_WIDTH = 64,
 
     /// The configuration of the subordinate ports (input ports).
-    parameter obi_pkg::obi_cfg_t ObiCfg      = obi_pkg::ObiDefaultConfig,
+    //parameter obi_pkg::obi_cfg_t ObiCfg      = obi_pkg::ObiDefaultConfig,
     /// The request struct for the subordinate ports (input ports).
-    parameter type               obi_req_t = logic,
+    parameter type               obi_req_t = if_types_pkg::obi_req_t,
     /// The response struct for the subordinate ports (input ports).
-    parameter type               obi_rsp_t = logic,
+    parameter type               obi_rsp_t = if_types_pkg::obi_rsp_t
 )(
     input logic clk,
     input logic rst_n,
@@ -47,8 +47,8 @@ module chip #(
     obi_cache_interface #(
         .ARCHITECTURE(ARCHITECTURE),
         .OBI_REQ_T(obi_req_t),
-        .OBI_RSP_T(obi_rsp_t),
-        .OBI_CONFG(ObiCfg)
+        .OBI_RSP_T(obi_rsp_t)
+        //.OBI_CONFG(ObiCfg)
     ) u_obi (
         .clk(clk),
         .rst_n(rst_n),
