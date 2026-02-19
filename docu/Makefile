@@ -2,16 +2,20 @@
 PANDOC = pandoc
 TARGET = dokumentation.pdf
 SOURCE_DIR = src
+DIAGRAM_DIR = src/diagramme
 # Hier die Reihenfolge der Kapitel festlegen
 CHAPTERS = $(SOURCE_DIR)/00_title.md \
-           $(SOURCE_DIR)/01_test.md \
-           $(SOURCE_DIR)/02_test.md
+           $(SOURCE_DIR)/01_einleitung.md \
+           $(SOURCE_DIR)/xx_learnings.md \
+           $(SOURCE_DIR)/xx_ausblick.md \
+           $(SOURCE_DIR)/xx_vivado_mac.md
 
 # Pandoc Optionen
 # --toc: Inhaltsverzeichnis
 # -N: Nummerierte Überschriften
 # --variable: Setzt LaTeX-Variablen (z.B. Seitenränder)
 PANDOC_FLAGS = -s --toc -N \
+               --resource-path=.:$(SOURCE_DIR):$(DIAGRAM_DIR) \
                --variable geometry:margin=2.5cm \
                --variable fontsize=11pt \
                --variable lang=de-DE

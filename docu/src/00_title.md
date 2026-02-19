@@ -13,6 +13,7 @@ classoption: titlepage
 header-includes:
   - \usepackage{graphicx}
 abstract: |
-  Das war ein sehr cooles Projekt
+  Implement a Redis-inspired cache that works in conjunction with the CPU. The goal is to create a fast cache for storing key-value pairs.
+  Basic CRUD (Create, Read, Update, Delete) implementation
 toc-title: "Inhaltsverzeichnis"
 ---
