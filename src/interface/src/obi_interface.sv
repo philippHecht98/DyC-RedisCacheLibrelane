@@ -35,6 +35,8 @@ module obi_cache_interface #(
     localparam OPERATION_WRITE_OFFSET       = TOTAL_INPUT_REGISTER_LENGTH - OP_WIDTH; // Operation code is in the highest bits
     localparam KEY_OFFSET                   = VALUE_WIDTH; // Key is in the middle bits
     localparam VALUE_OFFSET                 = 0; // Value is in the lowest bits
+    localparam ADDRESS_WIDTH                = $clog2(TOTAL_INPUT_REGISTER_LENGTH >> 3); // Assuming 8-byte alignment
+
 
     // =========================================================================
     // Internal Stuff
@@ -82,7 +84,7 @@ module obi_cache_interface #(
 
     // initalize a channel module
     a_channel #(
-        .ADDR_WIDTH(ARCHITECTURE),
+        .ADDRESS_WIDTH(ADDRESS_WIDTH),
         .DATA_WIDTH(ARCHITECTURE)
     ) a_chan_inst (
         .clk(clk),
@@ -137,13 +139,13 @@ module obi_cache_interface #(
                 if (write_or_read_operation == 1'b0) begin
                     next_state          = IF_ST_IDLE;
                     internal_gnt        = 1'b1; // Grant the request since we can immediately respond to read operations without needing to wait for the controller to process the request 
-                    rdata_to_r_chan     = rdata_from_controller[addr_from_a_chan +: ARCHITECTURE]; // Send read data from controller to R-channel to be sent back to master
+                    rdata_to_r_chan     = rdata_from_controller[addr_from_a_chan << 3+: ARCHITECTURE]; // Send read data from controller to R-channel to be sent back to master
                     rvalid_to_r_chan    = rvalid_from_controller; // Send valid signal from controller to R-channel to indicate if read data is valid
                     err_to_r_chan       = err_from_controller; // Send error signal from controller to R
                 end
                 else begin
                     // Capture incoming request data into current_request register
-                    current_request_wires[addr_from_a_chan +: ARCHITECTURE] = wdata_from_a_chan;
+                    current_request_wires[addr_from_a_chan << 3+: ARCHITECTURE] = wdata_from_a_chan;
 
                     if (decoded_operation != ctrl_types_pkg::NOOP) begin
                         internal_gnt = 1'b0; 
@@ -221,17 +223,9 @@ module obi_cache_interface #(
             err_from_controller <= 1'b0; // Clear error signal when we start processing a new request
             rvalid_from_controller <= 1'b0; // Clear valid signal when we start processing a new request
         end
-    end    
-
-    always_ff @(posedge clk or negedge rst_n) begin : blockName
-        if (!rst_n) begin
-            current_request <= '0;
-        end else begin
-            current_request <= current_request_wires;
-        end
     end
 
-    always_ff @(posedge clk or negedge rst_n) begin : blockName
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             current_request <= '0;
         end else begin

@@ -1,9 +1,9 @@
 
 module a_channel #(
-    parameter ADDR_WIDTH = 32,
-    parameter DATA_WIDTH = 64
+    parameter ADDRESS_WIDTH = 4, // Width of the address bus (number of address bits)
+    parameter DATA_WIDTH    = 32
 )
-(
+(   
     input logic clk,
     input logic rst_n,
     
@@ -20,6 +20,10 @@ module a_channel #(
     output logic [DATA_WIDTH-1:0] wdata_out // Write data output to controller
 );
     import if_types_pkg::*;
+
+    logic [ADDR_WIDTH-1:0]    offset_addr;
+    // Calculate offset address (assuming 8-byte aligned)
+    assign offset_addr = obi_req.a.addr[ADDR_WIDTH-1:0];
 
     reg                     is_write_or_read_operation_reg;
     reg [ADDR_WIDTH-1:0]    addr_reg;
@@ -38,14 +42,14 @@ module a_channel #(
                     && obi_req.a.we // Write enable (1=write, 0=read)
                     && internal_gnt) begin
             // Extract lower bits of wdata that match ARCHITECTURE width
-            addr_reg <= obi_req.a.addr;
+            addr_reg <= offset_addr; // Shift left to get actual address
             wdata_reg <= obi_req.a.wdata;
             is_write_or_read_operation_reg <= 1'b1;
         end 
         else if (obi_req.req 
                     && !obi_req.a.we // Read enabled (1=write, 0=read)
                     && internal_gnt) begin
-            addr_reg <= obi_req.a.addr;
+            addr_reg <= offset_addr; // Shift left to get actual address
             is_write_or_read_operation_reg <= 1'b0;
         end 
     end
