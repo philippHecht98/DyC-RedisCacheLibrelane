@@ -106,6 +106,7 @@ class OBIInterfaceTester:
         self.err_to_r_chan = dut.err_to_r_chan
 
         self.current_request = dut.current_request
+        self.write_or_read_operation = dut.write_or_read_operation
 
 
     async def reset(self):
@@ -155,8 +156,14 @@ class OBIInterfaceTester:
     async def write_set_master_data_with_handshake(self, address, data, **kwargs):
         """Perform an OBI write transaction and wait for gnt."""
         await FallingEdge(self.clk)
+
+        kwargs['req'] = kwargs.get('req', 1)
+        kwargs['we'] = kwargs.get('we', 1)
+
+        kwargs
+
         self.obi_req.value = self.build_obi_req(
-            addr=address, wdata=data, req=1, we=1, **kwargs
+            addr=address, wdata=data, **kwargs
         )
         await RisingEdge(self.clk)  # Wait for req to be registered
         await ReadOnly()  # Wait for combinational logic to settle
@@ -165,9 +172,27 @@ class OBIInterfaceTester:
         await RisingEdge(self.clk)
         await ReadOnly()  # Wait for combinational logic to settle
 
+
     async def print_current_request(self): 
         print(f"Current OBI request value: 0b{int(self.current_request.value):0128b}")
         print(f"\tDecoded operation:\t\t0x{int(self.decoded_operation.value):032b}\n\tDecoded key:\t\t\t0x{int(self.decoded_key.value):032b}\n\tDecoded value:\t\t\t0x{int(self.decoded_value.value):064b}")
+
+
+    async def read_set_master_data(self, address, **kwargs):
+        """Perform an OBI read transaction by writing to the address with we=0 and waiting for gnt."""
+        await FallingEdge(self.clk)
+        kwargs['req'] = kwargs.get('req', 1)
+        kwargs['we'] = kwargs.get('we', 0)
+
+        self.obi_req.value = self.build_obi_req(
+            addr=address, **kwargs
+        )
+        await RisingEdge(self.clk)  # Wait for req to be registered
+        await ReadOnly()  # Wait for combinational logic to settle
+
+        # wait one more cycle for the internal register to hold the value
+        await RisingEdge(self.clk)
+        await ReadOnly()  # Wait for combinational logic to settle
 
 
     @staticmethod
@@ -325,7 +350,7 @@ async def test_obi_write_operation_without_req_set(dut):
 @cocotb.test()
 async def test_obi_write_operation_with_we_zero(dut):
     """
-    Test: Write to operation register with we=0 (should not write).
+    Test: Write to operation register with we=0 (should not write but rather read).
     
     Checks:
     - OBI write transaction does not occur (no gnt)
@@ -347,12 +372,17 @@ async def test_obi_write_operation_with_we_zero(dut):
     await RisingEdge(tester.clk)  # Wait for write to be registered
     await ReadOnly()  # Wait for combinational logic to settle
 
-    assert tester.addr_from_a_chan.value == 0x00, "Address from A-channel should be 0x00 for operation register"
-    assert tester.wdata_from_a_chan.value == 0x00, "Write data from A-channel should be 0x00 when we=0 (no write)"
+    assert tester.addr_from_a_chan.value == 0x01, "Address from A-channel should be 0x01 for operation register"
+    assert tester.write_or_read_operation.value == 0, "write_or_read_operation should be 0 for read operation when we=0"
     
     assert tester.state.value == OBIState.IDLE.value, "FSM should remain in IDLE state when we=0"
     assert tester.next_state.value == OBIState.IDLE.value, "Next state should also be IDLE when we=0"
     assert tester.obi_resp.value == 0, "OBI resp should be 0 when we=0 (no transaction)"
+
+    assert tester.internal_grant.value == 1, "gnt should be asserted for read operation when req=1 and we=0"
+    assert tester.rvalid_to_r_chan.value == 0, "rvalid to R-channel should be 0 when we=0 (no read response yet)"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 when we=0 (no read response yet)"
+    assert tester.rdata_to_r_chan.value == 0, "rdata to R-channel should be 0 when we=0 (no read response yet)"
 
 
 @cocotb.test()
@@ -580,20 +610,198 @@ async def test_obi_write_when_already_in_process(dut):
     await tester.reset()
 
     await tester.set_complete_command_line(key=0x01, data=0x01, operation=0x01)
-
+    
+    assert tester.write_or_read_operation.value == 1, "write_or_read_operation should be 1 for write operation"
+    assert tester.addr_from_a_chan.value == tester._OPERATION_OFFSET, "Address from A-channel should be 0x00 for operation register"
+    assert tester.wdata_from_a_chan.value == 0x01, "Write data from A-channel should be 0x01 for operation register write"
+    assert tester.write_or_read_operation.value == 1, "write_or_read_operation should be 1 for write operation"
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after setting complete command line"
+    assert tester.next_state.value == OBIState.PROCESS.value, "Next state should be PROCESS after setting complete command line"
 
     # Attempt to write operation code with req=1 and we=1 while in PROCESS state
-    await tester.write_set_master_data(address=0x01, data=0x01, req=1, we=1)
+    await tester.write_set_master_data(address=0x03, data=0x02, req=1, we=1)
 
     await RisingEdge(tester.clk)  # Wait for write to be registered
     await ReadOnly()  # Wait for combinational logic to settle
 
-    assert tester.addr_from_a_chan.value == 0x00, "Address from A-channel should be 0x00 for operation register"
-    assert tester.wdata_from_a_chan.value == 0x00, "Write data from A-channel should be 0x00 when FSM is in PROCESS state (no write)"
+    assert tester.addr_from_a_chan.value == tester._OPERATION_OFFSET, "Address from A-channel should be 0x01 for operation register"
+    assert tester.wdata_from_a_chan.value == 0x01, "Write data from A-channel should still be 0x01 of the old operation value since new write should not occur"
     
     assert tester.state.value == OBIState.PROCESS.value, "FSM should remain in PROCESS state when already processing an operation"
     assert tester.next_state.value == OBIState.PROCESS.value, "Next state should also be PROCESS when already processing an operation"
     assert tester.obi_resp.value == 0, "OBI resp should be 0 when write attempted during PROCESS state (no transaction)"
+    assert tester.rvalid_to_r_chan.value == 0, "rvalid to R-channel should be 0 when write attempted during PROCESS state (no read response)"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 when write attempted during PROCESS state (no read response)"
+    assert tester.rdata_to_r_chan.value == 0, "rdata to R-channel should be 0 when write attempted during PROCESS state (no read response)"
+
+
+@cocotb.test()
+async def test_obi_write_with_delays(dut):
+    """
+    Test: Write transactions with delays between requests.
+    
+    Checks:
+    - Delay before asserting req again
+    - Transaction still completes correctly
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await tester.write_set_master_data_with_handshake(address=tester._KEY_OFFSET, data=0x01, req=1, we=1)
+
+    # Wait several cycles before next write
+    await ClockCycles(tester.clk, 5)
+
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.internal_grant.value == 1, "gnt should be asserted for key register write"
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should still be in IDLE state since no command operation was yet written"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should still be IDLE since no command operation was yet written"
+    assert tester.decoded_key.value == 0x01, "Decoded key should be 0x01 after first write"
+    assert tester.decoded_value.value == 0, "Decoded value should still be 0 after only writing key"
+    assert tester.decoded_operation.value == 0, "Decoded operation should still be 0 after only writing key"
+
+    assert tester.value_out.value == 0, "value_out should still be 0 after only writing key"
+    assert tester.key_out.value == 0x01, "key_out should reflect written key value after first write"
+    assert tester.operation_out.value == 0, "operation_out should still be 0 after only writing key"
+
+    assert tester.addr_from_a_chan.value == tester._KEY_OFFSET, "Address from A-channel should be 0x40 for key register"
+    assert tester.wdata_from_a_chan.value == 0x01, "Write data from A-channel should be 0x01 for key register write"
+
+    # afterwards write operation and check that afterwards the command is processed and forwarded to the controller correctly
+    await tester.write_set_master_data_with_handshake(address=tester._OPERATION_OFFSET, data=0x02, req=1, we=1)
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should transition to IDLE state after operation write"
+    assert tester.next_state.value == OBIState.PROCESS.value, "Next state should be PROCESS after operation write"
+
+    assert tester.decoded_operation.value == 0x02, "Decoded operation should be 0x02 after write"
+    assert tester.decoded_key.value == 0x01, "Decoded key should still be 0x01 after operation write"
+    assert tester.decoded_value.value == 0, "Decoded value should still be 0 after operation write"
+    assert tester.internal_grant.value == 0, "gnt should be 0 after write finished"
+    assert tester.operation_out.value == 0x02, "operation_out should reflect written operation code after second write"
+    assert tester.key_out.value == 0x01, "key_out should still reflect the previously written key value after second write"
+    assert tester.value_out.value == 0, "value_out should still be 0 after operation write since no value was written"
+
+
+    # afterwards check that the FSM transitions to PROCESS state 
+    await RisingEdge(tester.clk)  # Wait for write to be current_register
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.state.value == OBIState.PROCESS.value, "FSM should transition to PROCESS state after operation write"
+    assert tester.next_state.value == OBIState.PROCESS.value, "Next state should also be PROCESS state after operation write since we should still be processing the command"
+
+    assert tester.internal_grant.value == 0, "gnt should still be 0 after operation write since we should still be processing the command"
+    assert tester.operation_out.value == 0x02, "operation_out should still reflect written operation code after processing started"
+    assert tester.key_out.value == 0x01, "key_out should still reflect the previously written key value after processing started"
+    assert tester.value_out.value == 0, "value_out should still be 0 after processing started since no value was written"
+
+
+@cocotb.test()
+async def test_obi_write_with_r_channel_standard_test(dut):
+    """
+    Test: Read from operation register after writing.
+    
+    Checks:
+    - Write a value to operation register
+    - Read it back via OBI
+    - Values match
+    - No error flag set
+    """
+    
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await tester.set_complete_command_line(key=0x01, data=0x01, operation=0x01)
+
+    # set inputs of the r channel module to simulate a read response from the controller
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after writing complete command line"
+    assert tester.next_state.value == OBIState.PROCESS.value, "Next state should also be PROCESS to allow read response"
+
+    # simulate the controller taking some time to process the command
+    await ClockCycles(tester.clk, 5)
+
+    assert tester.state.value == OBIState.PROCESS.value, "FSM should still be in PROCESS state while waiting for operation to complete"
+
+    tester.op_succ_in.value = 1  # Simulate successful operation completion
+    tester.err_from_controller.value = 0  # Simulate no error from controller
+    tester.rdata_from_controller.value = 0x05  # Simulate read data from controller
+    tester.ready_in.value = 1  # Simulate ready signal from controller
+
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.op_succ_in.value == 1, "op_succ_in should be 1 to indicate successful operation completion"
+    assert tester.err_from_controller.value == 0, "err_from_controller should be 0 to indicate no error from controller"
+    assert tester.rdata_from_controller.value == 0x05, "rdata_from_controller should be 0x05 as set for the read response"
+
+    await RisingEdge(tester.clk)  # Wait for signals to be registered in the FSM logic
+    await ReadOnly()  # Wait for combinational logic to settle
+    assert tester.state.value == OBIState.COMPLETE.value, "FSM should transition to COMPLETE state after successful operation completion"
+
+    assert tester.rdata_to_r_chan.value == 0x00, "rdata to R-channel should be 0 as was not read transaction"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 to indicate no error in read response"
+    assert tester.rvalid_to_r_chan.value == 0, "rvalid to R-channel should be 0 to indicate no valid read response available"
+    assert tester.internal_grant.value == 0, "gnt should be 0 to indicate no grant signal is asserted since master is not yet ready"
+    
+
+@cocotb.test()
+async def test_obi_write_with_fast_write(dut):
+    """
+    Test: Write to A-Channel without waiting one cycle between writes.
+    
+    Checks:
+    - First write completes correctly
+    - Second write starts immediately after first
+    - Both writes complete successfully
+    - No data corruption or lost transactions
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    fixed_addrs = [0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12]
+    fixed_values = [0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01]
+    
+    temp_request = 0x00
+
+    for i, addr in enumerate(fixed_addrs): 
+
+        await FallingEdge(tester.clk)  # Wait for falling edge of clock to start write
+        await tester.write_set_master_data(address=addr, data=fixed_values[i], req=1, we=1)
+
+        await RisingEdge(tester.clk)  # Wait for write to be registered
+        await ReadOnly()  # Wait for combinational logic to settle
+
+        assert tester.addr_from_a_chan.value == addr, f"Address from A-channel should be 0x{addr:02x} for write {i}"
+        assert tester.wdata_from_a_chan.value == fixed_values[i], f"Write data from A-channel should be 0x{fixed_values[i]:02x} for write {i}"
+        assert tester.internal_grant.value == 1, f"gnt should be asserted for write {i}"
+        assert tester.state.value == OBIState.IDLE.value, f"FSM should be in IDLE state after write {i} since no operation register write yet"
+        assert tester.next_state.value == OBIState.IDLE.value, f"Next state should be IDLE after write {i} since no operation register write yet"
+        assert tester.current_request.value == temp_request, f"current_request should be 0x{temp_request:02x} for write {i}"    
+
+        temp_request |= (fixed_values[i] << addr)  # Set req bit for current address for next cycle
+
+    await RisingEdge(tester.clk)  # Wait for last write to be registered
+    await ReadOnly()  # Wait for combinational logic to settle
+    assert tester.current_request.value == temp_request, f"current_request should be equal to final temp request"
 
 
 
@@ -601,45 +809,198 @@ async def test_obi_write_when_already_in_process(dut):
 # OBI R Channel TRANSACTION TESTS
 # =============================================================================
 
-# @cocotb.test()
-# async def test_obi_read_operation_standard_test(dut):
-#     """
-#     Test: Read from operation register after writing.
+@cocotb.test()
+async def test_obi_read_standard_test(dut):
+    """
+    Test: Read from operation register after writing.
     
-#     Checks:
-#     - Write a value to operation register
-#     - Read it back via OBI
-#     - Values match
-#     - No error flag set
-#     """
+    Checks:
+    - Write a value to operation register
+    - Read it back via OBI
+    - Values match
+    - No error flag set
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
     
-#     tester = OBIInterfaceTester(dut)
+    # Apply reset
+    await tester.reset()
 
-#     # Start clock
-#     clock = Clock(tester.clk, 10, unit="ns")
-#     cocotb.start_soon(clock.start())
+    await RisingEdge(tester.clk)  # Wait for reset to complete
     
-#     # Apply reset
-#     await tester.reset()
+    tester.ready_in.value = 1  # Simulate controller ready to accept read response
+    tester.value_in.value = 0x05  # Simulate value input for read response
+    tester.op_succ_in.value = 1  # Simulate successful operation completion for read response
 
-#     await FallingEdge(tester.clk)
+    await FallingEdge(tester.clk)  # Wait for falling edge of clock to register inputs
+    await ReadOnly()  # Wait for combinational logic to settle
 
-#     # set inputs of the r channel module to simulate a read response from the controller
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after reset"
 
-#     tester.internal_grant.value = 1  # Simulate internal grant to allow read response
-#     tester.rvalid_to_r_chan.value = 1  # Simulate valid read data available
-#     tester.rdata_to_r_chan.value = 0x01  # Simulate read data from controller
-#     tester.err_to_r_chan.value = 0  # Simulate no error
+    await tester.read_set_master_data(address=tester._VALUE_OFFSET)
 
-#     await RisingEdge(tester.clk)  # Wait for signals to be registered in the r channel logic
+    assert tester.addr_from_a_chan.value == tester._VALUE_OFFSET, "Address from A-channel should be 0x08 for value register read"
+    assert tester.write_or_read_operation.value == 0, "write_or_read_operation should be 0 for read operation"
+    assert tester.internal_grant.value == 1, "gnt should be asserted for read transaction"
+    assert tester.rvalid_to_r_chan.value == 1, "rvalid should be asserted for read transaction"
+    
+    assert tester.rdata_to_r_chan.value == 0x05, "rdata to R-channel should be 0x05 as set for read response"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 to indicate no error in read response"
 
-#     rdata, err, rid, r_optional, gnt, rvalid = await tester.read_obi_response()
+    assert tester.state.value == OBIState.IDLE.value, "FSM should return to IDLE state after read transaction completes"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should also be IDLE after read transaction completes"  
 
-#     assert rdata == 0x01, f"Expected rdata 0x01, got 0x{rdata:x}"
-#     assert err == 0, f"Expected err 0, got {err}"
-#     assert rid == 0, f"Expected rid 0, got {rid}"
-#     assert r_optional == 0, f"Expected r_optional 0, got {r_optional}"
-#     assert rvalid == 1, f"Expected rvalid 1, got {rvalid}"
+    # simulate one more pos edge to check that result is also in the registers
+    await RisingEdge(tester.clk)
+
+    # check obi response signals after read transaction completes
+    rdata, err, rid, r_optional, gnt, rvalid = await tester.read_obi_response()
+    assert gnt == 0, "gnt should be 0 after read transaction completes"
+    assert rvalid == 1, "rvalid should be 1 after read transaction completes"
+    assert rdata == 0x05, "rdata should be 0x05 after read transaction completes"
+    assert err == 0, "err should be 0 after read transaction completes"
+    assert rid == 0, "rid should be 0 after read transaction completes"
+    assert r_optional == 0, "r_optional should be 0 after read transaction completes"
+
+
+@cocotb.test()
+async def test_obi_read_with_error(dut):
+    """
+    Test: Read from operation register with error response.
+    
+    Checks:
+    - Simulate error condition for read response
+    - err flag should be set in OBI response
+    - rdata should be 0 in OBI response
+    - FSM should return to IDLE state
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await RisingEdge(tester.clk)  # Wait for reset to complete
+    
+    tester.ready_in.value = 1  # Simulate controller ready to accept read response
+    tester.value_in.value = 0x00  # Simulate value input for read response (should be ignored due to error)
+    tester.op_succ_in.value = 0  # Simulate failed operation completion for read response to trigger error
+
+    await FallingEdge(tester.clk)  # Wait for falling edge of clock to register inputs
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after reset"
+
+    await tester.read_set_master_data(address=tester._VALUE_OFFSET)
+
+    assert tester.addr_from_a_chan.value == tester._VALUE_OFFSET, "Address from A-channel should be 0x08 for value register read"
+    assert tester.write_or_read_operation.value == 0, "write_or_read_operation should be 0 for read operation"
+    assert tester.internal_grant.value == 1, "gnt should be asserted for read transaction"
+    assert tester.rvalid_to_r_chan.value == 1, "rvalid should be asserted for read transaction"
+    
+    assert tester.rdata_to_r_chan.value == 0x00, "rdata to R-channel should be 0x00 when error occurs in read response"
+    assert tester.err_to_r_chan.value == 1, "err to R-channel should be 1 to indicate error in read response"
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should return to IDLE state after read transaction completes even with error"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should also be IDLE after read transaction completes even with error"
+
+
+@cocotb.test()
+async def test_obi_with_data_offset(dut):
+    """
+    Test: Write to value registers with offset addresses.
+    
+    Checks:
+    - Write to value register at offset address (e.g., 0x08, 0x0C)
+    - OBI write transaction completes successfully
+    - value_out reflects written value
+    - Correct handling of address offsets
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await RisingEdge(tester.clk)  # Wait for reset to complete
+    
+    tester.ready_in.value = 1  # Simulate controller ready to accept read response
+    tester.value_in.value = 0x1273  # Simulate value input for read response (should be ignored due to error)
+    tester.op_succ_in.value = 1  # Simulate failed operation completion for read response to trigger error
+
+    await FallingEdge(tester.clk)  # Wait for falling edge of clock to register inputs
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after reset"
+
+    await tester.read_set_master_data(address=tester._VALUE_OFFSET + 0x08)  # Read from value register at offset address
+
+    assert tester.addr_from_a_chan.value == tester._VALUE_OFFSET + 0x08, "Address from A-channel should be 0x10 for value register read at offset address"
+    assert tester.write_or_read_operation.value == 0, "write_or_read_operation should be 0 for read operation"
+    assert tester.internal_grant.value == 1, "gnt should be asserted for read transaction"
+    assert tester.rvalid_to_r_chan.value == 1, "rvalid should be asserted for read transaction"
+
+    assert tester.rdata_to_r_chan.value == 0x1273 >> 0x08, "rdata to R-channel should reflect upper 32 bits of value for read from offset address"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 to indicate no error in read response"
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should return to IDLE state after read transaction completes"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should also be IDLE after read transaction completes"
+
+
+@cocotb.test()
+async def test_obi_read_whole_handshake(dut):
+    """
+    Test: Simlulate whole read transaction with handshake
+    
+    Checks:
+    - Write to operation register to trigger read transaction
+    - Simulate controller ready and providing read data
+    - OBI read transaction completes successfully
+    - rdata and err signals are correct in OBI response
+    - FSM transitions through correct states during read transaction
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+@cocotb.test()
+async def test_obi_read_whole_value(dut):
+    """
+    Test: Read from value registers to reconstruct whole 64-bit value.
+    
+    Checks:
+    - Write to both lower and upper value registers
+    - Read back both registers via OBI
+    - Reconstruct 64-bit value correctly
+    - No error flag set
+    """
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+
+@cocotb.test()
+async def test_obi_read_during_process_state(dut):
+    pass
 
 
 # @cocotb.test()
@@ -1308,6 +1669,44 @@ async def test_obi_write_when_already_in_process(dut):
 #     - Eventually completes when done_in asserts
 #     """
 #     pass
+
+# =============================================================================
+# OBI CONSECUTIVE OPERATION TESTS
+# =============================================================================
+
+# @cocotb.test()
+# async def test_obi_write_back_to_back(dut):
+#     """
+#     Test: Multiple consecutive write transactions without gaps.
+    
+#     Checks:
+#     - First write completes correctly
+#     - Second write starts immediately after first
+#     - Both writes complete successfully
+#     - No data corruption or lost transactions
+#     """
+#     tester = OBIInterfaceTester(dut)
+
+#     # Start clock
+#     clock = Clock(tester.clk, 10, unit="ns")
+#     cocotb.start_soon(clock.start())
+    
+#     # Apply reset
+#     await tester.reset()
+
+#     # First write to key register
+#     await tester.set_complete_command_line(key=0x01, data=0x01, operation=0x01)  # Write key first without operation to stay in IDLE state
+
+#     assert tester.state.value == OBIState.PROCESS.value, "FSM should transition to PROCESS state after first write since operation was written"
+#     assert tester.next_state.value == OBIState.PROCESS.value, "Next state should also be PROCESS state after first write since operation was written"
+#     assert tester.decoded_key.value == 0x01, "Decoded key should be 0x01 after first write"
+#     assert tester.decoded_value.value == 0x01, "Decoded value should be 0x01 after first write"
+#     assert tester.decoded_operation.value == 0x01, "Decoded operation should be 0x01 after first write"
+#     assert tester.internal_grant.value == 0, "gnt should be 0 after first write finished"
+#     assert tester.operation_out.value == 0x01, "operation_out should reflect written operation code after first write"
+#     assert tester.key_out.value == 0x01, "key_out should reflect written key value after first write"
+#     assert tester.value_out.value == 0x01, "value_out should reflect written value after first write"
+
 
 
 # =============================================================================

@@ -46,6 +46,9 @@ module obi_cache_interface #(
     // Internal grant signal (combinational logic)
     logic internal_gnt;
 
+    // Internal signal to indicate if the current operation is a write or read (1=write, 0=read)
+    logic write_or_read_operation;
+
     // Registers to hold the current request data
     reg [TOTAL_INPUT_REGISTER_LENGTH-1:0] current_request;
 
@@ -55,6 +58,7 @@ module obi_cache_interface #(
     // Registers to hold the response data from controller
     reg [VALUE_WIDTH-1:0]   rdata_from_controller;
     reg                     err_from_controller;
+    reg                     rvalid_from_controller;
     
     // logical wires to hold the decoded operation, key, and value from the current request
     logic [OP_WIDTH-1:0]     decoded_operation;
@@ -86,7 +90,8 @@ module obi_cache_interface #(
         .obi_req(obi_req),
         .internal_gnt(internal_gnt),
         .addr_out(addr_from_a_chan), // Connect to controller address input
-        .wdata_out(wdata_from_a_chan) // Connect to controller write data input
+        .wdata_out(wdata_from_a_chan), // Connect to controller write data input
+        .is_write_or_read_operation(write_or_read_operation)
     );
 
     // initalize r channel module
@@ -112,44 +117,54 @@ module obi_cache_interface #(
         // Default to not granting until we determine we have a valid request to process
         internal_gnt = 1'b0; 
 
-        rdata_to_r_chan = '0;
-        rvalid_to_r_chan = 1'b0;
-        err_to_r_chan = 1'b0;
-
         // Default to holding the current request unless we capture new data
         current_request_wires = current_request; 
+
+        rdata_to_r_chan = '0;
+        err_to_r_chan = 1'b0;
+        rvalid_to_r_chan = 1'b0;
+
 
         case (state)
             // Wait in idle state until master initiates a complete request
             // When master writes to the operation register, transition to processing state
-            // Set 
+            // Set internal_gnt to 1'b1 to signal that we are ready to accept a new request
             IF_ST_IDLE: begin
 
-                // Capture incoming request data into current_request register
-                current_request_wires[addr_from_a_chan +: ARCHITECTURE] = wdata_from_a_chan;
-
-                if (decoded_operation != ctrl_types_pkg::NOOP) begin
-                    internal_gnt = 1'b0; 
-                    next_state        = IF_ST_PROCESS;
+                // check if current operation is a read operation. If so and in idle state, 
+                // we can directly grant the request and transition back to idle state
+                // since we can immediatly place the r channel to the response already in the rdata_from_controller
+                if (write_or_read_operation == 1'b0) begin
+                    next_state          = IF_ST_IDLE;
+                    internal_gnt        = 1'b1; // Grant the request since we can immediately respond to read operations without needing to wait for the controller to process the request 
+                    rdata_to_r_chan     = rdata_from_controller[addr_from_a_chan +: ARCHITECTURE]; // Send read data from controller to R-channel to be sent back to master
+                    rvalid_to_r_chan    = rvalid_from_controller; // Send valid signal from controller to R-channel to indicate if read data is valid
+                    err_to_r_chan       = err_from_controller; // Send error signal from controller to R
                 end
-
-                // still allow master to write the full request data into
-                // the current_request register while in idle state, 
-                // yet do not transition until the operation code is written
                 else begin
-                    next_state = IF_ST_IDLE;
-                    internal_gnt = 1'b1;
+                    // Capture incoming request data into current_request register
+                    current_request_wires[addr_from_a_chan +: ARCHITECTURE] = wdata_from_a_chan;
+
+                    if (decoded_operation != ctrl_types_pkg::NOOP) begin
+                        internal_gnt = 1'b0; 
+                        next_state        = IF_ST_PROCESS;
+                    end
+
+                    // still allow master to write the full request data into
+                    // the current_request register while in idle state, 
+                    // yet do not transition until the operation code is written
+                    else begin
+                        next_state = IF_ST_IDLE;
+                        internal_gnt = 1'b1;
+                    end
                 end
             end
 
             // In the processing state, wait for the controller to 
             IF_ST_PROCESS: begin
-                // If controller signals that the data on the wires is ready, 
+                // If controller signals that the data on the wires is ready
                 if (ready_in) begin
                     next_state      = IF_ST_COMPLETE;
-                    rdata_to_r_chan = rdata_from_controller[addr_from_a_chan +: ARCHITECTURE]; // Send the appropriate portion of the read data back to r-channel to be sent back to master
-                    rvalid_to_r_chan = 1'b1; // Signal to r-channel that the read data is valid and can be sent back to master
-                    err_to_r_chan   = err_from_controller; // If operation was not successful, send error signal to r-channel to be sent back to master
                 end
 
                 // Controller is still processing request, 
@@ -162,15 +177,19 @@ module obi_cache_interface #(
             IF_ST_COMPLETE: begin
                 // Clear the current request register to be ready for the next request
                 current_request_wires = '0;
+                rdata_to_r_chan = '0;
+                err_to_r_chan = 1'b0;
+                rvalid_to_r_chan = 1'b0;
 
                 if (obi_req.rready) begin
                     next_state = IF_ST_IDLE;
-                    internal_gnt = 1'b0; // Deassert grant until we have a new valid request to process
+                    internal_gnt = 1'b1; // Deassert grant until we have a new valid request to process
                 end
                 // Still waiting for master to accept response
                 // stay in complete state until master is ready to accept response
                 else begin
                     next_state = IF_ST_COMPLETE;
+                    internal_gnt = 1'b0; // Deassert grant until current transaction is completed by master
                 end
             end
 
@@ -190,21 +209,27 @@ module obi_cache_interface #(
         if (!rst_n) begin
             rdata_from_controller <= '0;
             err_from_controller <= 1'b0;
+            rvalid_from_controller <= 1'b0;
         end 
-        
-        // Capture the incoming request data into the current_request register on every cycle
-        else if (state == IF_ST_PROCESS) begin
-            // Capture read data from controller
-            rdata_from_controller <= value_in; 
-
-            // Capture operation success as error signal (assuming op_succ_in is 1 for success, 0 for failure)
-            err_from_controller <= !op_succ_in; 
+        else if (ready_in) begin
+            rdata_from_controller <= value_in; // Capture read data from controller when ready signal is asserted
+            err_from_controller <= ~op_succ_in; // If operation was not successful, set error signal to be sent back to master
+            rvalid_from_controller <= 1'b1; // Signal that the read data from controller is valid and can be sent back to master
         end 
-        else begin
-            rdata_from_controller <= '0;
-            err_from_controller <= 1'b0;
+        else if (next_state == IF_ST_PROCESS) begin
+            rdata_from_controller <= '0; // Clear read data when we start processing a new request
+            err_from_controller <= 1'b0; // Clear error signal when we start processing a new request
+            rvalid_from_controller <= 1'b0; // Clear valid signal when we start processing a new request
         end
     end    
+
+    always_ff @(posedge clk or negedge rst_n) begin : blockName
+        if (!rst_n) begin
+            current_request <= '0;
+        end else begin
+            current_request <= current_request_wires;
+        end
+    end
 
     always_ff @(posedge clk or negedge rst_n) begin : blockName
         if (!rst_n) begin
