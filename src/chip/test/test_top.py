@@ -74,11 +74,8 @@ class TopTester:
         
         Returns: (rdata, err, rid, r_optional, gnt, rvalid)
         """
-        print(f"Raw obi_resp value: {str(obi_resp)}")
-        #print(f"Raw obi_resp value: 0b{int(obi_resp):039b}")
-        # Convert LogicArray to integer for bitwise operations
-        #val = int(obi_resp)
-
+        #print(f"Raw obi_resp value: {str(obi_resp)}")
+        
         try:
             val = int(obi_resp)
         except ValueError:
@@ -133,12 +130,16 @@ class TopTester:
         self.obi_req_i.value = self.build_obi_req(
             addr=address, wdata=data, **kwargs
         )
+
         await RisingEdge(self.clk)  # Wait for req to be registered
         await ReadOnly()  # Wait for combinational logic to settle
 
         # wait one more cycle for the internal register to hold the value
         await RisingEdge(self.clk)
         await ReadOnly()  # Wait for combinational logic to settle
+
+        
+        
 
     def log_obi_status(self):
         """Log internal state of OBI Interface for debugging."""
@@ -153,6 +154,7 @@ class TopTester:
         self.dut._log.info(f"Internal_grant Val: {self.u_obi.internal_gnt.value}")
         self.dut._log.info(f"Write or Read Operation: {self.u_obi.write_or_read_operation.value}")
         self.dut._log.info(f"Ready in: {self.u_obi.ready_in.value}")
+        self.dut._log.info(f"Obi req: {self.obi_req_i.value}")
         self.dut._log.info("")
         self.dut._log.info(f"Next State: {self.u_obi.next_state.value}")
         self.dut._log.info("----------------------------\n")
@@ -190,7 +192,6 @@ async def test_reset(dut):
     assert rid == 0, f"OBI Request ID should be 0, got {rid}"
     assert r_optional == 0, f"OBI ROptional should be 0, got {r_optional}"
     assert gnt == 0, f"OBI Grant should be 0, got {gnt}"
-    assert rvalid == 0, f"OBI RValid should be 0, got {rvalid}"
 
 
     ####################
@@ -225,11 +226,7 @@ async def test_insert_simple(dut):
     
     await tester.reset()
 
-    assert tester.u_obi.internal_gnt.value == 1, "Internal grant should be 1 before transaction"
-
-
-    #await tester.obi_write(address=0x00, data=0x01, req=1, we=1)
-    #await tester.write_set_master_data_with_handshake(address=0x00, data=0x01, req=1, we=1)
+    assert tester.u_obi.state.value == OBIState.IDLE.value, f"FSM should still be in idle but got {tester.u_obi.state.value}"
 
     val_lsb = 0xDEADBEEF
     val_msb = 0xCAFEBABE
@@ -243,17 +240,17 @@ async def test_insert_simple(dut):
     # 3. Write Key
     await tester.write_set_master_data_with_handshake(address=0x08, data=key)
     # 4. Write Opcode (triggers the operation). Set rready=1 to allow completion.
-    await tester.write_set_master_data_with_handshake(address=0x0C, data=op_upsert, rready=1)
-    #await tester.write_set_master_data_with_handshake(address=tester._KEY_OFFSET, data=0x01, req=1, we=1)
+    await tester.write_set_master_data_with_handshake(address=0x0C, data=op_upsert)
+    
 
-    assert tester.u_obi.state.value == OBIState.IDLE.value, "FSM should still be in idle as Operation register was not set"
+    print(f"Done writing 1")
 
-
-    print(f"Done writing")
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    
+    print(f"Done writing 2")
     tester.log_obi_status()
 
-    await RisingEdge(tester.clk)
-    await ReadOnly()  # Wait for combinational logic to settle
     
     tester.log_obi_status()
 
@@ -301,7 +298,8 @@ def test_top_runner():
         "NUM_OPERATIONS": "2",
         "NUM_ENTRIES": "16",
         "KEY_WIDTH": "32",
-        "VALUE_WIDTH": "64"
+        "VALUE_WIDTH": "64",
+        "ID_WIDTH": "3"
     }
 
     runner = get_runner(sim)

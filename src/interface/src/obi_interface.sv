@@ -8,10 +8,10 @@ module obi_cache_interface #(
 
     /*   OBI interface signals   */
     // Incoming wires from master (CPU)
-    input OBI_REQ_T obi_req,
+    input if_types_pkg::obi_req_t obi_req,
 
     // Outgoing wires to master (CPU)
-    output OBI_RSP_T obi_resp,
+    output if_types_pkg::obi_rsp_t obi_resp,
 
     /*   Controller interface signals (simplified for now - assuming data always available)   */
     // Incoming wires from controller 
