@@ -38,6 +38,7 @@ module del_fsm #(
         next_state = state;
         delete_out = 1'b0;
         idx_out    = '0;
+        cmd        = '0;
 
         case (state)
 
@@ -87,7 +88,7 @@ module del_fsm #(
             // ----------------------------------------------------------
             DEL_ST_ERROR: begin
                 delete_out  = 1'b0;
-                idx_out     = 1'b0;
+                idx_out     = '0;
                 cmd.error   = 1'b1;
                 next_state = DEL_ST_START; // Ready for the next operation
             end

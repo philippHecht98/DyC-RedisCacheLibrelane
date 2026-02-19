@@ -75,6 +75,8 @@ module top #(
         .operation_valid_out(reg_write_i.operation_valid),
         .busy_out(reg_write_i.busy),
         .busy_valid_out(reg_write_i.busy_valid),
+        .hit_out(reg_write_i.hit),
+        .hit_valid_out(reg_write_i.hit_valid),
         .data_valid_out(reg_write_i.data_valid)
     );
 

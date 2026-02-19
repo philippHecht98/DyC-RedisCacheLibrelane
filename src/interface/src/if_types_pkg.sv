@@ -39,7 +39,8 @@ package if_types_pkg;
     } key_bits_t;
 
     typedef struct packed {
-        logic [27:0] unused;
+        logic [26:0] unused;
+        logic        hit;
         operation_e  operation;
         logic        busy;
     } ctrl_bits_t;
@@ -69,10 +70,12 @@ package if_types_pkg;
     typedef struct packed {
         data_bits_t dat;
         logic       busy;
+        logic       hit;
         operation_e operation;
 
         logic       data_valid;
         logic       busy_valid;
+        logic       hit_valid;
         logic       operation_valid;
     } reg_write_t;
 

@@ -10,7 +10,7 @@ module get_fsm (
     input logic hit,
 
     // management outputs
-    output ctrl_types_pkg::sub_cmd_t cmd,
+    output ctrl_types_pkg::sub_cmd_t cmd
 );
     import ctrl_types_pkg::*;
 

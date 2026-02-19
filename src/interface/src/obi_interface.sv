@@ -113,6 +113,10 @@ module obi_cache_interface import if_types_pkg::*; #(
         if (reg_write_i.busy_valid) begin
             new_reg.CTR.busy = reg_write_i.busy;
         end
+        // Update hit bit if valid
+        if (reg_write_i.hit_valid) begin
+            new_reg.CTR.hit = reg_write_i.hit;
+        end
         // Update operation register if valid
         if (reg_write_i.operation_valid) begin
             new_reg.CTR.operation = reg_write_i.operation;
@@ -155,6 +159,7 @@ module obi_cache_interface import if_types_pkg::*; #(
             end else if (word_addr_q_int == RegAddrCtrlWord) begin
                 rsp_data[0]   = reg_q.CTR.busy;
                 rsp_data[3:1] = reg_q.CTR.operation;
+                rsp_data[4]   = reg_q.CTR.hit;
             end
         end
     end

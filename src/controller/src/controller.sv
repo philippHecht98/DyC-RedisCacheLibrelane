@@ -20,8 +20,10 @@ module controller import ctrl_types_pkg::*; #(
 
     // Interface output
     output logic busy_out,
+    output logic hit_out,
     output operation_e operation_out,
     output logic busy_valid_out,
+    output logic hit_valid_out,
     output logic operation_valid_out,
     output logic data_valid_out
 );
@@ -113,8 +115,10 @@ module controller import ctrl_types_pkg::*; #(
         delete_out = 1'b0;
 
         busy_out = 1'b0;
+        hit_out = 1'b0;
         operation_out = NOOP;
         busy_valid_out = 1'b0;
+        hit_valid_out = 1'b0;
         operation_valid_out = 1'b0;
         data_valid_out = 1'b0;
 
@@ -122,6 +126,10 @@ module controller import ctrl_types_pkg::*; #(
             ST_IDLE: begin 
                 busy_out = 1'b1;
                 busy_valid_out = 1'b1;
+
+                hit_out = 1'b0;
+                hit_valid_out = 1'b1;
+
                 case (operation_in)
                     READ: begin
                         next_state = ST_GET;
@@ -136,6 +144,9 @@ module controller import ctrl_types_pkg::*; #(
                         next_state = ST_IDLE;
                         busy_out = 1'b0;
                         busy_valid_out = 1'b0;
+
+                        hit_out = 1'b0;
+                        hit_valid_out = 1'b0;
                     end
                 endcase
             end
@@ -145,6 +156,8 @@ module controller import ctrl_types_pkg::*; #(
                     next_state = ST_IDLE;
                     busy_out = 1'b0;
                     busy_valid_out = 1'b1;
+                    hit_out = hit;
+                    hit_valid_out = 1'b1;
                     operation_out = NOOP;
                     operation_valid_out = 1'b1;
                     data_valid_out = 1'b1;
@@ -180,6 +193,11 @@ module controller import ctrl_types_pkg::*; #(
             ST_ERR: begin
                 // Error recovery logic if needed
                 next_state = ST_IDLE; // For now, just go back to ST_IDLE
+
+                busy_out = 1'b0;
+                busy_valid_out = 1'b1;
+                hit_out = 1'b0;
+                hit_valid_out = 1'b1;
             end
             default: next_state = ST_IDLE;
         endcase

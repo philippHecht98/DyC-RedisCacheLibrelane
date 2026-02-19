@@ -62,7 +62,7 @@ module upsert_fsm #(
                     // key doesnt exist and no free space
                     select_out = 1'b0;
                     write_out = 1'b0;
-                    cmd.done = 1'b1;
+                    cmd.done = 1'b0;
                     cmd.error = 1'b1;
                 end
             end
