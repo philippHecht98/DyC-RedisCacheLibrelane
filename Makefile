@@ -1,37 +1,16 @@
-# Top-level Makefile (GNU make)
-SRC_DIR := src
+TOP = spm_chip
+TAG = spm
+PROJECT_DIR = $(shell pwd)
 
-# Subdir name (under src/) that must run last. Override like:
-#   make TOP=chip_top
-TOP ?= chip
+LIBRELANE_DIR ?= $(PROJECT_DIR)/librelane
+PDK_ROOT ?= $(PROJECT_DIR)/pdk
 
-# Auto-detect all immediate subdirs that contain a Makefile: src/*/Makefile
-SUBDIRS := $(sort $(dir $(wildcard $(SRC_DIR)/*/Makefile)))
-SUBDIRS := $(patsubst %/,%,$(SUBDIRS)) # strip trailing /
+PDK = ihp-sg13g2
 
-# Everything except the LAST one
-FIRST := $(filter-out $(SRC_DIR)/$(TOP),$(SUBDIRS))
+CONFIG_FILE = $(PROJECT_DIR)/config.json
 
-.PHONY: librelane components chip librelane-% view-% list
+gds-base: run/${TAG}final/gds/$(TOP).gds
+.PHONY: gds-base
 
-.NOTPARALLEL: librelane
-librelane: components chip
-
-# Build all non-last blocks (parallelizable with -j)
-components: $(addprefix librelane-,$(notdir $(FIRST)))
-
-# Enforce ordering for "all" without making "make last" rebuild "first"
-chip: librelane-$(TOP)
-
-# Convenience: show what got detected
-list:
-	@echo "Detected:       $(notdir $(SUBDIRS))"
-	@echo "components:     $(notdir $(FIRST))"
-	@echo "top:            $(TOP)"
-
-# Delegate to child makefiles
-librelane-%:
-	$(MAKE) -C $(SRC_DIR)/$* librelane
-
-view-%:
-	$(MAKE) -C $(SRC_DIR)/$* view-results
+run/${TAG}final/gds/$(TOP).gds:
+	PDK_ROOT=$(PDK_ROOT) PDK=$(PDK) librelane --run-tag $(TAG) --condensed --overwrite --manual-pdk $(CONFIG_FILE)
