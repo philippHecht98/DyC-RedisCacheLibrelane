@@ -80,12 +80,11 @@ class MemoryBlockTester:
 
     async def read_by_key(self, key: int):
         """Liest Daten aus dem Register (ohne Output zu aktivieren)."""
-        await RisingEdge(self.clk)
         self.select_by_index.value = 0  # read by key
         self.key_in.value = key
         
+        await RisingEdge(self.clk)
         await ReadOnly()
-        await FallingEdge(self.clk)
         return self.value_out.value
 
 
@@ -108,12 +107,10 @@ class MemoryBlockTester:
 
     async def get_cell_value_by_index(self, idx: int):
         """Read the value stored in a specific memory cell."""
-        await RisingEdge(self.clk)
         self.select_by_index.value = 1  # read by index
         self.index_in.value = 1 << idx
         
-        await ReadOnly()
-        await FallingEdge(self.clk)
+        await RisingEdge(self.clk)
         await ReadOnly()
         value = self.value_out.value  # capture value BEFORE clearing select
 
@@ -179,7 +176,7 @@ async def test_writing_memory_block(dut):
     tester.write_op.value = 1  # Write-Operation aktivieren
     tester.index_in.value = 1 << 0  # Schreiben in die erste Zelle
 
-    await FallingEdge(tester.clk)
+    await RisingEdge(tester.clk)
     await ReadOnly()  
 
     assert tester.hit.value == 1, f"Expected hit signal to be 1 after writing, but got {tester.hit.value}."
@@ -235,7 +232,7 @@ async def test_reading_cell_by_key(dut):
         # Lesen des Werts über den Schlüssel und Überprüfen der Korrektheit
         read_value = await tester.read_by_key(key)
 
-        assert dut.hit.value == 1, f"Expected hit signal to be 1 for key {key}, but got {dut.hit.value}."
+        assert dut.hit.value == 1, f"Expected hit signal to be 1 for key {key}, but got {dut.hit.value} for idx {i}."
         assert read_value == value, f"Expected value {value} for key {key}, but got {read_value}."
 
 
@@ -258,22 +255,20 @@ async def test_reading_cell_by_index(dut):
         value = (i + 1) * 2  # Wert im Bereich der Wertbreite
         await tester.write(i, key, value)
 
+
     all_cells = await tester.get_all_cells()
     print(f"All cells: {all_cells}")
 
     # Lesen der zellen an den Stellen über die select Operation und Überprüfen ob mit einem matchendem Schlüssel
     for i in range(num_entries):
-        await RisingEdge(tester.clk)
-
+        await FallingEdge(tester.clk)
         dut.index_in.value = 1 << i  # Index auf die Zelle setzen
         dut.select_by_index.value = 1  # Read-Operation aktivieren
+        
+        await RisingEdge(tester.clk)
         await ReadOnly()
-
-        await FallingEdge(tester.clk)  # Warten auf die Ausgabe
-
         expected_value = (i + 1) * 2
 
-        await ReadOnly()  
         assert tester.hit.value == 1, f"Expected hit signal to be 1 for select operation with index {i}, but got {tester.hit.value}."
         assert tester.value_out.value == expected_value, f"Expected value_out {expected_value} for select operation with index {i}, but got {tester.value_out.value}."
 
@@ -298,12 +293,13 @@ async def test_reading_cell_by_select_with_input_key_matching(dut):
 
 
     for i in range(num_entries):
-        await RisingEdge(tester.clk)
+        await FallingEdge(tester.clk)
         # Lesen der Zelle über key
         dut.index_in.value = 0  # Index auf die erste Zelle setzen
         dut.key_in.value = i + 1  # Schlüssel setzen, der mit dem ersten Eintrag übereinstimmt
         dut.select_by_index.value = 0  # Read-Operation aktivieren
-        await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+        
+        await RisingEdge(tester.clk)
         await ReadOnly()
 
         assert tester.hit.value == 1, f"Expected hit signal to be 1 for select operation with matching index, but got {tester.hit.value}."
@@ -328,12 +324,12 @@ async def test_reading_cell_by_select_with_input_key_not_matching(dut):
         value = (i + 1) * 2  # Wert im Bereich der Wertbreite
         await tester.write(i, key, value)
 
-    await RisingEdge(tester.clk)
     # Lesen der Zelle über key
     dut.index_in.value = 0  # Index auf die erste Zelle setzen
     dut.key_in.value = 15  # Schlüssel setzen, der mit keinem Eintrag übereinstimmt
     dut.select_by_index.value = 0  # Read-Operation aktivieren
-    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+    
+    await RisingEdge(tester.clk)
     await ReadOnly()
 
     assert tester.hit.value == 0, f"Expected hit signal to be 0 for select operation with non-matching index, but got {tester.hit.value}."
@@ -360,10 +356,11 @@ async def test_deleting_entry(dut):
         await tester.write(i, key, value)
 
     # Löschen des Eintrags an Index 0
-    await RisingEdge(tester.clk)
     tester.index_in.value = 1 << 0  # Index auf die erste Zelle setzen
     tester.delete_op.value = 1  # Delete-Operation aktivieren
-    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+    
+    await RisingEdge(tester.clk)
+    tester.delete_op.value = 0
 
     # Überprüfen, dass der Eintrag gelöscht wurde
     assert await tester.get_used_entries() == num_entries - 1, f"Expected {num_entries - 1} used entries after deletion, but got {await tester.get_used_entries()}."
@@ -394,10 +391,10 @@ async def test_deleting_all_entries(dut):
 
     # Löschen aller Einträge
     for i in range(num_entries):
-        await RisingEdge(tester.clk)
         tester.index_in.value = 1 << i  # Index auf die Zelle setzen
         tester.delete_op.value = 1  # Delete-Operation aktivieren
-        await FallingEdge(tester.clk)  # Warten auf die Ausgabe
+        await RisingEdge(tester.clk)
+        tester.delete_op.value = 0
 
     # Überprüfen, dass alle Einträge gelöscht wurden
     assert await tester.get_used_entries() == 0, f"Expected 0 used entries after deleting all entries, but got {await tester.get_used_entries()}."
@@ -438,6 +435,7 @@ async def test_overwriting_entry(dut):
     # Überprüfen, dass der Eintrag überschrieben wurde
     assert await tester.get_used_entries() == 1, f"Expected 1 used entry after overwriting, but got {await tester.get_used_entries()}."
 
+    await RisingEdge(tester.clk)
     value_after_overwrite = await tester.get_cell_value_by_index(0)
     assert value_after_overwrite == new_value, f"Expected value {new_value} in cell after overwriting, but got {hex(value_after_overwrite)}."
     assert tester.hit.value == 1, f"Expected hit signal to be 1 after overwriting, but got {tester.hit.value}."
@@ -484,14 +482,10 @@ async def test_persistence_of_entries(dut):
         await tester.write(i, key, value)
 
     # Löschen eines Eintrags und Überprüfen der Persistenz der anderen Einträge
-    await RisingEdge(tester.clk)
     tester.index_in.value = 1 << 0  # Index auf die erste Zelle setzen
     tester.delete_op.value = 1  # Delete-Operation aktivieren
-    await FallingEdge(tester.clk)  # Warten auf die Ausgabe
-
+    await RisingEdge(tester.clk)
     tester.delete_op.value = 0  # Delete-Operation beenden
-    await ReadOnly()
-    await FallingEdge(tester.clk)
 
     assert await tester.get_used_entries() == num_entries - 1, f"Expected {num_entries - 1} used entries after deletion, but got {await tester.get_used_entries()}."
 

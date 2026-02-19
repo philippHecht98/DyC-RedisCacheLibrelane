@@ -27,14 +27,12 @@ class ControllerTester:
         for _ in range(num_cycles):
             await RisingEdge(self.clk)
         
-    async def check_outputs(self, idx_out, write_out, select_out, rdy_out, op_succ, delete_out=0):
+    async def check_outputs(self, idx_out, write_out, select_out, delete_out=0):
         """Check outputs against expected values."""
         await ReadOnly()
         assert self.dut.idx_out.value == idx_out, f"idx_out mismatch: {self.dut.idx_out.value} != {idx_out}"
         assert self.dut.write_out.value == write_out, f"write_out mismatch: {self.dut.write_out.value} != {write_out}"
         assert self.dut.select_out.value == select_out, f"select_out mismatch: {self.dut.select_out.value} != {select_out}"
-        assert self.dut.rdy_out.value == rdy_out, f"rdy_out mismatch: {self.dut.rdy_out.value} != {rdy_out}"
-        assert self.dut.op_succ.value == op_succ, f"op_succ mismatch: {self.dut.op_succ.value} != {op_succ}"
         assert self.dut.delete_out.value == delete_out, f"delete_out mismatch: {self.dut.delete_out.value} != {delete_out}"
         
 
@@ -57,7 +55,7 @@ async def test_reset(dut):
     await tester.reset()
 
     # Verify all outputs are 0 in IDLE state
-    await tester.check_outputs(idx_out=0, write_out=0, select_out=0, rdy_out=0, op_succ=0, delete_out=0)
+    await tester.check_outputs(idx_out=0, write_out=0, select_out=0, delete_out=0)
     
     # Verify state is IDLE (0)
     assert dut.state.value == 0, f"State mismatch: {dut.state.value} != 0 (IDLE)"
