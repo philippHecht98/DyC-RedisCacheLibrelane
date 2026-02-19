@@ -14,4 +14,4 @@ Das Ziel ist es, grundlegende Speicheroperationen direkt in Hardware abzubilden,
 
 Die Motivation liegt darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt.
 
-![Speicherblöcke](./diagramme/01_einleitung.drawio.svg)
+![Speicherblöcke](./diagramme/02_architektur.drawio.svg)
