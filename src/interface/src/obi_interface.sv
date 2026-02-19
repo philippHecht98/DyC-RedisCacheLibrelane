@@ -1,6 +1,7 @@
 
 module obi_cache_interface #(
-    parameter ARCHITECTURE = 32 // Bits per register in the interface
+    parameter ARCHITECTURE = 32, // Bits per register in the interface
+    parameter ID_WIDTH = 3 // Width of the ID field in OBI request
 ) (
     input logic clk, 
     input logic rst_n, 
@@ -51,10 +52,12 @@ module obi_cache_interface #(
     // Internal signal to indicate if the current operation is a write or read (1=write, 0=read)
     logic write_or_read_operation;
 
+    // reg to hold the current request id
+    reg [ID_WIDTH-1:0]      current_request_id;
+    logic [ID_WIDTH-1:0]    current_request_id_wires;
+
     // Registers to hold the current request data
     reg [TOTAL_INPUT_REGISTER_LENGTH-1:0] current_request;
-
-    // wires to capture the incoming request data from always_comb
     logic [TOTAL_INPUT_REGISTER_LENGTH-1:0] current_request_wires;
 
     // Registers to hold the response data from controller
@@ -67,17 +70,25 @@ module obi_cache_interface #(
     logic [KEY_WIDTH-1:0]    decoded_key;
     logic [VALUE_WIDTH-1:0]  decoded_value;
 
-    assign decoded_operation    = current_request[OPERATION_WRITE_OFFSET +: OP_WIDTH];
-    assign decoded_key          = current_request[KEY_OFFSET +: KEY_WIDTH];
-    assign decoded_value        = current_request[VALUE_OFFSET +: VALUE_WIDTH];
+    assign decoded_operation    = current_request_wires[OPERATION_WRITE_OFFSET +: OP_WIDTH];
+    assign decoded_key          = current_request_wires[KEY_OFFSET +: KEY_WIDTH];
+    assign decoded_value        = current_request_wires[VALUE_OFFSET +: VALUE_WIDTH];
 
     assign operation_out = ctrl_types_pkg::operation_e'(decoded_operation); // Cast to enum type for controller output
     assign key_out = decoded_key;
     assign value_out = decoded_value;
     
-    logic [ARCHITECTURE-1:0] addr_from_a_chan;
-    logic [ARCHITECTURE-1:0] wdata_from_a_chan;
+    // Signal to indicate that a valid operation has occurred on the A-channel (either read or write)
+    logic                     operation_happened; 
+    logic [ID_WIDTH-1:0]      rid_from_a_chan;
+    logic [ADDRESS_WIDTH-1:0] addr_from_a_chan;
+    logic [ARCHITECTURE-1:0]  wdata_from_a_chan;
 
+    // Bit position index (byte address * 8 to convert to bit offset)
+    logic [$clog2(TOTAL_INPUT_REGISTER_LENGTH)-1:0] bit_offset;
+    assign bit_offset = addr_from_a_chan << 3; // Multiply by 8 (shift left by 3)
+
+    logic [ID_WIDTH-1:0]     rid_to_r_chan;
     logic [ARCHITECTURE-1:0] rdata_to_r_chan;
     logic                    rvalid_to_r_chan;
     logic                    err_to_r_chan;
@@ -85,7 +96,8 @@ module obi_cache_interface #(
     // initalize a channel module
     a_channel #(
         .ADDRESS_WIDTH(ADDRESS_WIDTH),
-        .DATA_WIDTH(ARCHITECTURE)
+        .DATA_WIDTH(ARCHITECTURE),
+        .ID_WIDTH(ID_WIDTH)
     ) a_chan_inst (
         .clk(clk),
         .rst_n(rst_n),
@@ -93,19 +105,22 @@ module obi_cache_interface #(
         .internal_gnt(internal_gnt),
         .addr_out(addr_from_a_chan), // Connect to controller address input
         .wdata_out(wdata_from_a_chan), // Connect to controller write data input
-        .is_write_or_read_operation(write_or_read_operation)
+        .is_write_or_read_operation(write_or_read_operation),
+        .aid_out(rid_from_a_chan),
+        .operation_happened(operation_happened)
     );
 
     // initalize r channel module
     r_channel #(
-        .DATA_WIDTH(ARCHITECTURE)
+        .DATA_WIDTH(ARCHITECTURE),
+        .ID_WIDTH(ID_WIDTH)
     ) r_chan_inst (
         .clk(clk),
         .rst_n(rst_n),
         .obi_resp(obi_resp),
-        .internal_gnt(internal_gnt),
         .rvalid_in(rvalid_to_r_chan), // Connect ready signal from controller to rvalid input
         .rdata_in(rdata_to_r_chan), // Connect read data from controller to rdata input
+        .rid_in(current_request_id), // Connect current request ID to rid input
         .err_in(err_to_r_chan) // Connect error signal from controller to err input
     );
 
@@ -115,6 +130,7 @@ module obi_cache_interface #(
     always_comb begin
         // Default values for outputs and next state
         next_state = state; 
+        current_request_id_wires = current_request_id; // Hold the current request ID by default
 
         // Default to not granting until we determine we have a valid request to process
         internal_gnt = 1'b0; 
@@ -133,31 +149,51 @@ module obi_cache_interface #(
             // Set internal_gnt to 1'b1 to signal that we are ready to accept a new request
             IF_ST_IDLE: begin
 
+                if (!operation_happened) begin
+                    next_state = IF_ST_IDLE;
+                    // Still set grant on high as we are ready to accept coming requests
+                    internal_gnt = 1'b1; 
+                end
+
                 // check if current operation is a read operation. If so and in idle state, 
                 // we can directly grant the request and transition back to idle state
                 // since we can immediatly place the r channel to the response already in the rdata_from_controller
-                if (write_or_read_operation == 1'b0) begin
+                else if (write_or_read_operation == 1'b0) begin
                     next_state          = IF_ST_IDLE;
                     internal_gnt        = 1'b1; // Grant the request since we can immediately respond to read operations without needing to wait for the controller to process the request 
-                    rdata_to_r_chan     = rdata_from_controller[addr_from_a_chan << 3+: ARCHITECTURE]; // Send read data from controller to R-channel to be sent back to master
-                    rvalid_to_r_chan    = rvalid_from_controller; // Send valid signal from controller to R-channel to indicate if read data is valid
+
+                    rdata_to_r_chan     = rdata_from_controller[bit_offset[$clog2(VALUE_WIDTH)-1:0] +: ARCHITECTURE];
+                    rvalid_to_r_chan    = 1'b1; // Send valid signal to R-channel to indicate that read data is valid
                     err_to_r_chan       = err_from_controller; // Send error signal from controller to R
+                    rid_to_r_chan       = rid_from_a_chan; // Send the current request ID back in the response
                 end
+
+                // Write operation
                 else begin
                     // Capture incoming request data into current_request register
-                    current_request_wires[addr_from_a_chan << 3+: ARCHITECTURE] = wdata_from_a_chan;
+                    current_request_wires[bit_offset +: ARCHITECTURE] = wdata_from_a_chan;
 
                     if (decoded_operation != ctrl_types_pkg::NOOP) begin
+                        next_state   = IF_ST_PROCESS;
                         internal_gnt = 1'b0; 
-                        next_state        = IF_ST_PROCESS;
+
+                        // Ensure valid signal to R-channel is low during running the controller logic
+                        rvalid_to_r_chan    = 1'b0; 
+                        rdata_to_r_chan     = '0; // Clear read data to R-channel while processing request
+                        err_to_r_chan       = 1'b0; // Clear error signal to R-channel while processing request
                     end
 
                     // still allow master to write the full request data into
                     // the current_request register while in idle state, 
                     // yet do not transition until the operation code is written
                     else begin
-                        next_state = IF_ST_IDLE;
-                        internal_gnt = 1'b1;
+                        next_state      = IF_ST_IDLE;
+                        internal_gnt    = 1'b1;
+
+                        // Keep valid signal high to R-channel to indicate that we have read in the data from the A-channel
+                        rvalid_to_r_chan = 1'b1; 
+                        rdata_to_r_chan  = '0;
+                        err_to_r_chan    = 1'b0;
                     end
                 end
             end
@@ -167,32 +203,36 @@ module obi_cache_interface #(
                 // If controller signals that the data on the wires is ready
                 if (ready_in) begin
                     next_state      = IF_ST_COMPLETE;
+                    internal_gnt    = 1'b0; // Deassert grant until we have a new valid request to process
+
+                    rdata_to_r_chan = rdata_from_controller[bit_offset[$clog2(VALUE_WIDTH)-1:0] +: ARCHITECTURE]; // Capture read data from controller to send back to master
+                    rvalid_to_r_chan = 1'b1; // Send valid signal to R-channel to indicate that read data from controller is valid
+                    err_to_r_chan = ~op_succ_in; // Send error signal to R-channel based on operation success from controller
                 end
 
                 // Controller is still processing request, 
                 // stay in this state
                 else begin
                     next_state = IF_ST_PROCESS;
+                    internal_gnt = 1'b0; // Deassert grant until controller signals that it has processed the request and data is ready
+
+                    rvalid_to_r_chan    = 1'b0; // Ensure valid signal to R-channel is low while waiting for controller to process request
+                    rdata_to_r_chan     = '0; // Clear read data to R-channel while
+                    err_to_r_chan       = '0; // Clear error signal to R-channel while waiting for controller to process request
                 end
             end
             
             IF_ST_COMPLETE: begin
                 // Clear the current request register to be ready for the next request
                 current_request_wires = '0;
+
+                // Transition back to idle state to wait for the next request
+                next_state = IF_ST_IDLE;
+                internal_gnt = 1'b1; // Grant the next request since we have completed processing the current request and are ready for the next one
+
                 rdata_to_r_chan = '0;
                 err_to_r_chan = 1'b0;
                 rvalid_to_r_chan = 1'b0;
-
-                if (obi_req.rready) begin
-                    next_state = IF_ST_IDLE;
-                    internal_gnt = 1'b1; // Deassert grant until we have a new valid request to process
-                end
-                // Still waiting for master to accept response
-                // stay in complete state until master is ready to accept response
-                else begin
-                    next_state = IF_ST_COMPLETE;
-                    internal_gnt = 1'b0; // Deassert grant until current transaction is completed by master
-                end
             end
 
             default: next_state = IF_ST_IDLE;
@@ -228,8 +268,10 @@ module obi_cache_interface #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             current_request <= '0;
+            current_request_id <= '0;
         end else begin
             current_request <= current_request_wires;
+            current_request_id <= current_request_id_wires; 
         end
     end
 
