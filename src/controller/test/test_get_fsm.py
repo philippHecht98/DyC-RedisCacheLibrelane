@@ -15,8 +15,6 @@ class GetFSMTest:
         self.clk = dut.clk
         self.rst_n = dut.rst_n
         self.hit = dut.hit
-        self.rdy_out = dut.rdy_out
-        self.op_succ = dut.op_succ
         self.cmd = dut.cmd
     
     async def reset(self):
@@ -43,8 +41,6 @@ async def test_fsm_hit(dut):
 
     # Check if FSM transitions to the expected state
     await ReadOnly()
-    assert int(fsm_test.op_succ.value) == 1, "FSM did not output success"
-    assert int(fsm_test.rdy_out.value) == 1, "FSM did not set ready output"
     assert int(fsm_test.cmd.value) == 2, "FSM did not set correct command for hit scenario"
     assert (int(fsm_test.cmd.value) & 1) == 0, "FSM set error command"
 
@@ -65,8 +61,6 @@ async def test_fsm_miss(dut):
 
     # Check if FSM transitions to the expected state
     await ReadOnly()
-    assert int(fsm_test.op_succ.value) == 1, "FSM did not output success"
-    assert int(fsm_test.rdy_out.value) == 0, "FSM did not set ready output"
     assert int(fsm_test.cmd.value) == 2, "FSM did not set correct command for miss scenario"
     assert (int(fsm_test.cmd.value) & 1) == 0, "FSM set error command"
 

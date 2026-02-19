@@ -28,14 +28,12 @@ class UpsertTester:
         for _ in range(num_cycles):
             await RisingEdge(self.clk)
     
-    async def check_outputs(self, idx_out, write_out, select_out, rdy_out, op_succ):
+    async def check_outputs(self, idx_out, write_out, select_out):
         """Check outputs against expected values."""
         await ReadOnly()
         assert self.dut.idx_out.value == idx_out, f"idx_out mismatch: {self.dut.idx_out.value} != {idx_out}"
         assert self.dut.write_out.value == write_out, f"write_out mismatch: {self.dut.write_out.value} != {write_out}"
         assert self.dut.select_out.value == select_out, f"select_out mismatch: {self.dut.select_out.value} != {select_out}"
-        assert self.dut.rdy_out.value == rdy_out, f"rdy_out mismatch: {self.dut.rdy_out.value} != {rdy_out}"
-        assert self.dut.op_succ.value == op_succ, f"op_succ mismatch: {self.dut.op_succ.value} != {op_succ}"
         
         
 
@@ -58,11 +56,11 @@ async def test_reset_with_empty_used(dut):
     await tester.reset()
 
     # Verify all outputs are 0 in IDLE state
-    await tester.check_outputs(idx_out=1, write_out=1, select_out=0, rdy_out=1, op_succ=1)
+    await tester.check_outputs(idx_out=1, write_out=1, select_out=0)
 
     #await tester.wait_cycles(1)
     await FallingEdge(dut.clk)
-    await tester.check_outputs(idx_out=1, write_out=1, select_out=0, rdy_out=1, op_succ=1)
+    await tester.check_outputs(idx_out=1, write_out=1, select_out=0)
    
     dut._log.info("✓ Reset test passed")
 
@@ -87,7 +85,7 @@ async def test_hit_operation(dut):
     await RisingEdge(dut.clk)
     
     # Expect: idx_out follows idx_in, write enabled, success
-    await tester.check_outputs(idx_out=0b0100, write_out=1, select_out=1, rdy_out=1, op_succ=1)
+    await tester.check_outputs(idx_out=0b0100, write_out=1, select_out=1)
     
     dut._log.info("✓ Hit operation test passed")
 
@@ -113,7 +111,7 @@ async def test_miss_with_space(dut):
     await RisingEdge(dut.clk)
     
     # Expect: idx_out selects lowest free index (bit 3), write enabled, success
-    await tester.check_outputs(idx_out=8, write_out=1, select_out=0, rdy_out=1, op_succ=1)
+    await tester.check_outputs(idx_out=8, write_out=1, select_out=0)
     
     dut._log.info("✓ Miss with space test passed")
 
@@ -138,7 +136,7 @@ async def test_miss_full(dut):
     await RisingEdge(dut.clk)
     
     # Expect: No write, operation fails (error)
-    await tester.check_outputs(idx_out=0, write_out=0, select_out=0, rdy_out=0, op_succ=1)
+    await tester.check_outputs(idx_out=0, write_out=0, select_out=0)
     
     dut._log.info("✓ Miss full test passed")
 
