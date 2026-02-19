@@ -6,6 +6,8 @@ Tests OBI protocol compliance, FSM state transitions, and controller integration
 import os
 from pathlib import Path
 
+import math
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, FallingEdge, ReadOnly, ClockCycles
@@ -66,9 +68,9 @@ class OBIInterfaceTester:
     _RID_LSB      = 4   # 3 bits [6:4]
     _RDATA_LSB    = 7   # 32 bits [38:7]
 
-    _VALUE_OFFSET = 0x00
-    _KEY_OFFSET   = 0x40
-    _OPERATION_OFFSET = 0x60
+    _VALUE_OFFSET = 0x00000000
+    _KEY_OFFSET   = 0x00000002
+    _OPERATION_OFFSET = 0x00000003
 
     def __init__(self, dut):
         self.dut = dut
@@ -104,9 +106,13 @@ class OBIInterfaceTester:
         self.rdata_to_r_chan = dut.rdata_to_r_chan
         self.rvalid_to_r_chan = dut.rvalid_to_r_chan
         self.err_to_r_chan = dut.err_to_r_chan
+        self.rid_to_r_chan = dut.rid_to_r_chan
 
         self.current_request = dut.current_request
         self.write_or_read_operation = dut.write_or_read_operation
+        self.operation_happened = dut.operation_happened
+        self.rid_from_a_chan = dut.rid_from_a_chan
+
 
 
     async def reset(self):
@@ -114,11 +120,19 @@ class OBIInterfaceTester:
         self.rst_n.value = 0
         # Clear OBI request signals during reset
         self.obi_req.value = 0
+        self.ready_in.value = 0
+        self.err_from_controller.value = 0
+        self.rdata_from_controller.value = 0
         
         await RisingEdge(self.clk)
         self.rst_n.value = 1
         await RisingEdge(self.clk)
 
+    @staticmethod
+    def calculate_expected_address(address):
+        """Calculates the expected address from the address value given form the A-Channel"""
+        relevant_address_bits = (address & 0xF)
+        return relevant_address_bits
 
     # -----------------------------------------------------------------
     # Helpers to build / decompose the packed obi_req_t / obi_resp_t bit-vector
@@ -161,12 +175,17 @@ class OBIInterfaceTester:
         kwargs['we'] = kwargs.get('we', 1)
 
         kwargs
-
+        await FallingEdge(self.clk)  # Ensure we are on a clock edge before setting req
         self.obi_req.value = self.build_obi_req(
             addr=address, wdata=data, **kwargs
         )
+        
         await RisingEdge(self.clk)  # Wait for req to be registered
         await ReadOnly()  # Wait for combinational logic to settle
+
+        assert self.addr_from_a_chan.value == address, f"Address from A-channel should be 0x{address:02x}"
+        assert self.wdata_from_a_chan.value == data, f"Write data from A-channel should be 0x{data:02x}"
+        assert self.write_or_read_operation.value == kwargs['we'], f"write_or_read_operation should be {kwargs['we']} for {'write' if kwargs['we'] else 'read'} operation"
 
         # wait one more cycle for the internal register to hold the value
         await RisingEdge(self.clk)
@@ -274,6 +293,94 @@ async def test_reset_initialization(dut):
     assert tester.obi_resp.value == 0, "OBI resp should be 0 after reset"
 
     dut._log.info("✓ Reset initialization test passed")
+
+
+
+# =============================================================================
+# OBI Protocol Validation Tests
+# =============================================================================
+
+@cocotb.test()
+async def test_obi_write_handshake_standard(dut):
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await RisingEdge(tester.clk)
+
+    tester.obi_req.value = tester.build_obi_req(
+        addr=0x2000_0000, wdata=0x1111_1111, we=1, req=1, aid=0x2
+    )
+
+    #0000_0000_0000_0000_0001_0001_0001_0001_0001_0001_0001_0001_0000_0000_0000_0000
+
+    expected_address = tester.calculate_expected_address(0x20000000)
+
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.internal_grant.value == 1, "Internal grant should be 1 before transaction"
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state before transaction"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should be IDLE before transaction"
+    assert tester.addr_from_a_chan.value == 0, "Address from A-channel should be 0 before transaction"
+    assert tester.wdata_from_a_chan.value == 0, "Write data from A-channel should be 0 before transaction"
+    assert tester.write_or_read_operation.value == 0, "write_or_read_operation should be 0 before transaction"
+    assert tester.operation_happened.value == 0, "operation_happened should be 0 before transaction"
+
+    await RisingEdge(tester.clk)  # Wait for req to be registered
+    # handshake should now have occurred
+
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    assert tester.internal_grant.value == 1, "gnt should be asserted in response to req"
+    assert tester.addr_from_a_chan.value == expected_address, "Address from A-channel should be the expected address after handshake"
+    assert tester.wdata_from_a_chan.value == 0x1111_1111, "Write data from A-channel should be 0x11111111 for operation register"
+    assert tester.write_or_read_operation.value == 1, "write_or_read_operation should be 1 for write operation"
+    assert tester.rid_from_a_chan.value == 0x2, "RID from A-channel should be 0x2 as set in the request"
+    
+    # however data should not yet be in the internal register until the next cycle
+
+    assert tester.decoded_value.value == 0x1111_1111, "Decoded value should be 0 until next cycle after write"
+    assert tester.decoded_key.value == 0, "Decoded key should be 0 until next cycle after write"
+    assert tester.decoded_operation.value == 0, "Decoded operation should be 0 until next cycle after write"
+    
+    assert tester.operation_out.value == 0, "operation_out should be 0 until next cycle after write"
+    assert tester.key_out.value == 0, "key_out should be 0 until next cycle after write"
+    assert tester.value_out.value == 0x1111_1111, "value_out should be 0x1111_1111 until next cycle after write"
+
+    # yet the write transaction should be considered successful immediately after handshake
+
+    assert tester.rvalid_to_r_chan.value == 1, "rvalid to R-channel should be 1 immediately after write handshake"
+    assert tester.rid_to_r_chan.value == 0x2, "RID to R-channel should be 0x2 immediately after write handshake"
+    assert tester.err_to_r_chan.value == 0, "err to R-channel should be 0 immediately after write handshake"
+    assert tester.rdata_to_r_chan.value == 0, "rdata to R-channel should be 0 immediately after write handshake"
+     
+
+    rdata, err, rid, r_optional, gnt, rvalid = await tester.read_obi_response()
+    (rdata, err, rid, r_optional, gnt, rvalid) = await tester.split_obi_rsp(tester.obi_resp.value)
+
+    assert rdata == 0, "rdata in OBI response should be 0 immediately after write handshake"
+    assert err == 0, "err in OBI response should be 0 immediately after write handshake"
+    assert rid == 0x2, "rid in OBI response should match the request RID immediately after write handshake"
+    assert r_optional == 0, "r_optional in OBI response should be 0 immediately after write handshake"
+    assert gnt == 1, "gnt in OBI response should be 1 immediately after write handshake"
+    assert rvalid == 1, "rvalid in OBI response should be 1 immediately after write handshake"
+
+    await RisingEdge(tester.clk)  # Wait for next cycle for internal registers to update
+    await ReadOnly()  # Wait for combinational logic to settle
+
+    # now data should be inserted into internal registers, the FSM should still be in IDLE
+    # and wires from a channel shall be resetted. further 
+
+    assert tester.internal_grant.value == 1, "gnt should still be asserted in the cycle immediately after write handshake"
+
+
+
+
 
 
 # =============================================================================
@@ -653,7 +760,10 @@ async def test_obi_write_with_delays(dut):
     # Apply reset
     await tester.reset()
 
-    await tester.write_set_master_data_with_handshake(address=tester._KEY_OFFSET, data=0x01, req=1, we=1)
+    assert tester.internal_grant.value == 1, "Internal grant should be 1 before transaction"
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state before transaction"
+
+    await tester.write_set_master_data_with_handshake(address=tester._KEY_OFFSET, data=0x01000001, req=1, we=1)
 
     # Wait several cycles before next write
     await ClockCycles(tester.clk, 5)
@@ -664,16 +774,16 @@ async def test_obi_write_with_delays(dut):
 
     assert tester.state.value == OBIState.IDLE.value, "FSM should still be in IDLE state since no command operation was yet written"
     assert tester.next_state.value == OBIState.IDLE.value, "Next state should still be IDLE since no command operation was yet written"
-    assert tester.decoded_key.value == 0x01, "Decoded key should be 0x01 after first write"
+    assert tester.decoded_key.value == 0x01000001, "Decoded key should be 0x01000001 after first write"
     assert tester.decoded_value.value == 0, "Decoded value should still be 0 after only writing key"
     assert tester.decoded_operation.value == 0, "Decoded operation should still be 0 after only writing key"
 
     assert tester.value_out.value == 0, "value_out should still be 0 after only writing key"
-    assert tester.key_out.value == 0x01, "key_out should reflect written key value after first write"
+    assert tester.key_out.value == 0x01000001, "key_out should reflect written key value after first write"
     assert tester.operation_out.value == 0, "operation_out should still be 0 after only writing key"
 
-    assert tester.addr_from_a_chan.value == tester._KEY_OFFSET, "Address from A-channel should be 0x40 for key register"
-    assert tester.wdata_from_a_chan.value == 0x01, "Write data from A-channel should be 0x01 for key register write"
+    assert tester.addr_from_a_chan.value == tester._KEY_OFFSET, "Address from A-channel should be 0x20 for key register"
+    assert tester.wdata_from_a_chan.value == 0x01000001, "Write data from A-channel should be 0x01000001 for key register write"
 
     # afterwards write operation and check that afterwards the command is processed and forwarded to the controller correctly
     await tester.write_set_master_data_with_handshake(address=tester._OPERATION_OFFSET, data=0x02, req=1, we=1)
@@ -682,11 +792,11 @@ async def test_obi_write_with_delays(dut):
     assert tester.next_state.value == OBIState.PROCESS.value, "Next state should be PROCESS after operation write"
 
     assert tester.decoded_operation.value == 0x02, "Decoded operation should be 0x02 after write"
-    assert tester.decoded_key.value == 0x01, "Decoded key should still be 0x01 after operation write"
+    assert tester.decoded_key.value == 0x01000001, "Decoded key should still be 0x01000001 after operation write"
     assert tester.decoded_value.value == 0, "Decoded value should still be 0 after operation write"
     assert tester.internal_grant.value == 0, "gnt should be 0 after write finished"
     assert tester.operation_out.value == 0x02, "operation_out should reflect written operation code after second write"
-    assert tester.key_out.value == 0x01, "key_out should still reflect the previously written key value after second write"
+    assert tester.key_out.value == 0x01000001, "key_out should still reflect the previously written key value after second write"
     assert tester.value_out.value == 0, "value_out should still be 0 after operation write since no value was written"
 
 
@@ -803,6 +913,35 @@ async def test_obi_write_with_fast_write(dut):
     await ReadOnly()  # Wait for combinational logic to settle
     assert tester.current_request.value == temp_request, f"current_request should be equal to final temp request"
 
+
+@cocotb.test()
+async def test_obi_write_with_new_alignment(dut):
+    tester = OBIInterfaceTester(dut)
+
+    # Start clock
+    clock = Clock(tester.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # Apply reset
+    await tester.reset()
+
+    await tester.write_set_master_data_with_handshake(address=0x20001000, data=0xA5A5A5A5, req=1, we=1)
+
+    assert tester.state.value == OBIState.IDLE.value, "FSM should be in IDLE state after reset and before write"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should be IDLE after reset and before write"
+    assert tester.write_or_read_operation.value == 1, "write_or_read_operation should be 1 for write operation"
+    assert tester.internal_grant.value == 1, "gnt should be asserted for write transaction even with unaligned address"
+    assert tester.decoded_key.value == 0, "Decoded key should be 0 for write transaction even with unaligned address"
+    assert tester.decoded_operation.value == 0x00, "Decoded operation should be 0x00 for write transaction even with unaligned address" 
+    assert tester.decoded_value.value == 0xA5A5A5A5, "Decoded value should be 0xA5A5A5A5 for write transaction even with unaligned address"
+
+    await RisingEdge(tester.clk)  # Wait for write to be registered
+    await ReadOnly()  # Wait for combinational logic to settle
+    assert tester.addr_from_a_chan.value == 0x00, "Address from A-channel should be aligned to 0x00 for operation register even when unaligned address is given"
+    assert tester.decoded_value.value == 0xA5A5A5A5, "Write data from A-channel should be 0xA5A5A5A5 for the given data"
+    assert tester.internal_grant.value == 1, "gnt should be asserted in response to req even with unaligned address"
+    assert tester.state.value == OBIState.IDLE.value, "FSM should still be in idle as Operation register was not set"
+    assert tester.next_state.value == OBIState.IDLE.value, "Next state should be IDLE after write since operation register was not written to even with unaligned address"
 
 
 # =============================================================================
@@ -996,6 +1135,10 @@ async def test_obi_read_whole_value(dut):
     
     # Apply reset
     await tester.reset()
+
+
+
+
 
 
 @cocotb.test()
@@ -1719,6 +1862,7 @@ def test_interface_runner():
     Sets up simulation environment and executes all tests.
     """
     sim = os.getenv("SIM", "verilator")
+    waves = os.getenv("WAVES", "1")
     proj_path = Path(__file__).resolve().parent 
     
     # Source files for cache interface

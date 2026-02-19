@@ -44,6 +44,13 @@ module r_channel #(
             err_reg <= err_in;
             id_reg <= rid_in;
         end
+
+        else if (!rvalid_in) begin
+            rvalid_reg <= 1'b0; // Clear valid signal when not valid
+            rdata_reg <= '0; // Clear data when not valid
+            err_reg <= 1'b0; // Clear error when not valid
+            id_reg <= '0; // Clear ID when not valid
+        end
     end
 
     assign obi_resp.r.rdata    = rdata_reg; // Data captured from controller
