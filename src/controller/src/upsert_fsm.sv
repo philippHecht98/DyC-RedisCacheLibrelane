@@ -13,8 +13,6 @@ module upsert_fsm #(
     output logic select_out,
     output logic write_out,
     output logic [NUM_ENTRIES-1:0] idx_out,
-    output logic rdy_out,
-    output logic op_succ,
 
     output ctrl_types_pkg::sub_cmd_t cmd
 );
@@ -28,8 +26,6 @@ module upsert_fsm #(
         select_out = 1'b0;
         write_out = 1'b0;
         idx_out = '0;
-        rdy_out = 1'b0;
-        op_succ = 1'b0;
         cmd.done = 1'b0;
         cmd.error = 1'b0;
 
@@ -46,8 +42,6 @@ module upsert_fsm #(
                     select_out = 1'b1;
                     write_out = 1'b1;
                     idx_out = idx_in;
-                    rdy_out = 1'b1;
-                    op_succ = 1'b1;
                     cmd.done = 1'b1;
                     cmd.error = 1'b0;
 
@@ -61,8 +55,6 @@ module upsert_fsm #(
                     end
                     select_out = 1'b0;
                     write_out = 1'b1;
-                    rdy_out = 1'b1;
-                    op_succ = 1'b1;
                     cmd.done = 1'b1;
                     cmd.error = 1'b0;
 
@@ -70,9 +62,7 @@ module upsert_fsm #(
                     // key doesnt exist and no free space
                     select_out = 1'b0;
                     write_out = 1'b0;
-                    rdy_out = 1'b0;
-                    op_succ = 1'b1;
-                    cmd.done = 1'b1;
+                    cmd.done = 1'b0;
                     cmd.error = 1'b1;
                 end
             end

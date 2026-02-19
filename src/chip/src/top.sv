@@ -1,4 +1,4 @@
-module chip #(
+module top #(
     parameter ARCHITECTURE = 32,
     parameter NUM_OPERATIONS = 2,
     parameter NUM_ENTRIES = 16,
@@ -6,12 +6,12 @@ module chip #(
     parameter VALUE_WIDTH = 64,
 
     /// The configuration of the subordinate ports (input ports).
-    parameter obi_pkg::obi_cfg_t ObiCfg      = obi_pkg::ObiDefaultConfig,
+    parameter obi_pkg::obi_cfg_t           ObiCfg      = obi_pkg::ObiDefaultConfig,
     /// The request struct for the subordinate ports (input ports).
-    parameter type               obi_req_t = logic,
+    parameter type                         obi_req_t   = logic,
     /// The response struct for the subordinate ports (input ports).
-    parameter type               obi_rsp_t = logic,
-)(
+    parameter type                         obi_rsp_t   = logic
+) (
     input logic clk,
     input logic rst_n,
 
@@ -24,16 +24,11 @@ module chip #(
     import if_types_pkg::*;
     import ctrl_types_pkg::*;
 
-    // Internal Signals
     // Interface <-> Controller
-    operation_e              ctrl_op;
-    logic                    ctrl_rdy;
-    logic                    ctrl_succ;
+    reg_read_t reg_read_o;
+    reg_write_t reg_write_i;
     
     // Interface <-> Memory
-    logic [KEY_WIDTH-1:0]    mem_key;
-    logic [VALUE_WIDTH-1:0]  mem_val_wr;
-    logic [VALUE_WIDTH-1:0]  mem_val_rd;
 
     // Controller <-> Memory
     logic [NUM_ENTRIES-1:0]  mem_used;
@@ -45,10 +40,9 @@ module chip #(
     logic                    mem_del;
 
     obi_cache_interface #(
-        .ARCHITECTURE(ARCHITECTURE),
-        .OBI_REQ_T(obi_req_t),
-        .OBI_RSP_T(obi_rsp_t),
-        .OBI_CONFG(ObiCfg)
+        .obi_req_t(obi_req_t),
+        .obi_rsp_t(obi_rsp_t),
+        .ObiCfg(ObiCfg)
     ) u_obi (
         .clk(clk),
         .rst_n(rst_n),
@@ -56,13 +50,8 @@ module chip #(
         .obi_req(obi_req_i),
         .obi_resp(obi_resp_o),
 
-        .ready_in(ctrl_rdy),
-        .op_succ_in(ctrl_succ),
-        .value_in(mem_val_rd),
-
-        .operation_out(ctrl_op),
-        .key_out(mem_key),
-        .value_out(mem_val_wr)
+        .reg_read_o(reg_read_o),
+        .reg_write_i(reg_write_i)
     );
 
     controller #(
@@ -70,17 +59,25 @@ module chip #(
     ) u_ctrl (
         .clk(clk),
         .rst_n(rst_n),
+
         .used(mem_used),
         .idx_in(mem_idx_match),
         .hit(mem_hit),
-        .operation_in(ctrl_op),
+
+        .operation_in(reg_read_o.operation),
 
         .idx_out(mem_idx_sel),
         .write_out(mem_we),
         .select_out(mem_sel),
         .delete_out(mem_del),
-        .rdy_out(ctrl_rdy),
-        .op_succ(ctrl_succ)
+
+        .operation_out(reg_write_i.operation),
+        .operation_valid_out(reg_write_i.operation_valid),
+        .busy_out(reg_write_i.busy),
+        .busy_valid_out(reg_write_i.busy_valid),
+        .hit_out(reg_write_i.hit),
+        .hit_valid_out(reg_write_i.hit_valid),
+        .data_valid_out(reg_write_i.data_valid)
     );
 
     memory_block #(
@@ -96,11 +93,11 @@ module chip #(
         .select_by_index(mem_sel),
         .delete_in(mem_del),
 
-        .key_in(mem_key),
-        .value_in(mem_val_wr),
+        .key_in(reg_read_o.key),
+        .value_in(reg_read_o.dat),
         .index_in(mem_idx_sel),
 
-        .value_out(mem_val_rd),
+        .value_out(reg_write_i.dat),
         .index_out(mem_idx_match),
         .hit(mem_hit),
         .used_entries(mem_used)

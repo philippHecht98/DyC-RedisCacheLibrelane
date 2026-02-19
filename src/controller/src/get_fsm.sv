@@ -10,11 +10,7 @@ module get_fsm (
     input logic hit,
 
     // management outputs
-    output ctrl_types_pkg::sub_cmd_t cmd,
-
-    // logic outputs
-    output logic rdy_out,
-    output logic op_succ
+    output ctrl_types_pkg::sub_cmd_t cmd
 );
     import ctrl_types_pkg::*;
 
@@ -23,14 +19,9 @@ module get_fsm (
     always_comb begin : control_logic
         next_state = state;
         cmd = '0;
-        rdy_out = '0;
-        op_succ = '0;
 
         case (state)
             GET_ST_START: begin
-                rdy_out = hit;
-                op_succ = 1'b1;
-
                 cmd.done = 1'b1;
             end
             default: begin
