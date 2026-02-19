@@ -1,46 +1,79 @@
-`include "obi/typedef.svh"
-
 package if_types_pkg;
-    // =========================================================================
-    // Parameter definitions
-    // =========================================================================
 
-    // Architecture bit length
-    parameter ARCHITECTURE = 32;
-    // Multiplier factor for value width relative to KEY_WIDTH
-    parameter MULT_FACTOR = 2;
-    parameter OP_WIDTH = 3; // Operation code width (e.g., for different cache operations)
+    import ctrl_types_pkg::operation_e;
 
-    localparam KEY_WIDTH = ARCHITECTURE; // Key width matches architecture for simplicity
-    localparam VALUE_WIDTH = MULT_FACTOR * ARCHITECTURE; // Value width is double the architecture for larger cache lines
-    
-    localparam offsets = VALUE_WIDTH; // Offset width in bytes
-    // Number of registers needed to store the value based on the architecture and multiplier factor
-    localparam NUM_OFFSETS = MULT_FACTOR;
+    //-- Configurable values -----------------------------------------------------------------------
+    localparam int RegAlignBytes = 4; // regs aligned to this many bytes (4 -> 32-bit aligned)
 
-    localparam ADDR_WIDTH = ARCHITECTURE;
-    
-    localparam BE_WIDTH = VALUE_WIDTH / 8; // Byte enable width is value width divided by 8 (bits per byte)
+    localparam int RegDataWidth = 64; // width of the data register (must be a multiple of 32 bits)
+    localparam int RegKeyWidth  = 32; // width of the key register (must be a multiple of 32 bits)
 
-    // Interface FSM States
-    // Used by both AXI4-Lite and OBI interface implementations
-    typedef enum logic [1:0] {
-        IF_ST_IDLE          = 2'b00,  // Waiting for CPU to write operation register
-        IF_ST_PROCESS       = 2'b01,  // Wait for controller done signal
-        IF_ST_COMPLETE      = 2'b10   // Operation complete, CPU can read results
-    } if_state_e;
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Address Offsets //
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Address widths used for decoding
+    localparam int RegDataBytes  = RegDataWidth / 8;
+    localparam int RegKeyBytes   = RegKeyWidth / 8;
+    localparam int TotalBytes    = RegDataBytes + RegKeyBytes + 1;
+    localparam int AddressBits   = $clog2(TotalBytes);
+    localparam int AddressOffset = $clog2(RegAlignBytes);
 
+    // Register Address Offsets (byte offsets compared against AddressBits-wide address)
+    localparam int RegAddrData_i = 0;
+    localparam int RegAddrKey_i  = RegDataBytes;
+    localparam int RegAddrCtrl_i = RegAddrKey_i + RegKeyBytes;
 
-    // Define optional fields (minimal for simplicity)
-    `OBI_TYPEDEF_MINIMAL_A_OPTIONAL(a_optional_t)
-    `OBI_TYPEDEF_MINIMAL_R_OPTIONAL(r_optional_t)
+    localparam [AddressBits-1:0] RegAddrData = RegAddrData_i[AddressBits-1:0];
+    localparam [AddressBits-1:0] RegAddrKey  = RegAddrKey_i[AddressBits-1:0];
+    localparam [AddressBits-1:0] RegAddrCtrl = RegAddrCtrl_i[AddressBits-1:0];
 
-    // Define A-channel and R-channel
-    `OBI_TYPEDEF_A_CHAN_T(a_chan_t, ARCHITECTURE, ARCHITECTURE, 3, a_optional_t)
-    `OBI_TYPEDEF_R_CHAN_T(r_chan_t, ARCHITECTURE, 3, r_optional_t)
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Individual register bitfield typedefs for the register interface
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    typedef struct packed {
+        logic [RegDataWidth-1:0] data;
+    } data_bits_t;
 
-    // Define request and response
-    `OBI_TYPEDEF_REQ_T(obi_req_t, a_chan_t) // Can be configured to not include rready (OBI_TYPEDEF_DEFAULT_REQ_T)
-    `OBI_TYPEDEF_RSP_T(obi_rsp_t, r_chan_t)
+    typedef struct packed {
+        logic [RegKeyWidth-1:0] key;
+    } key_bits_t;
+
+    typedef struct packed {
+        logic [27:0] unused;
+        operation_e  operation;
+        logic        busy;
+    } ctrl_bits_t;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Unions for the register interface
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    typedef struct packed {
+        data_bits_t DAT;
+        key_bits_t  KEY;
+        ctrl_bits_t CTR;
+    } redis_cache_reg_fields_t;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Individual register typedefs for the controller interface
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Interface between internal logic and registers
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    typedef struct packed {
+        data_bits_t dat;
+        key_bits_t  key;
+        operation_e operation;
+    } reg_read_t;
+
+    typedef struct packed {
+        data_bits_t dat;
+        logic       busy;
+        operation_e operation;
+
+        logic       data_valid;
+        logic       busy_valid;
+        logic       operation_valid;
+    } reg_write_t;
 
 endpackage  
