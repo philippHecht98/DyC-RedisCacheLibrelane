@@ -1,4 +1,0 @@
--W .github/workflows/backend.yml
--e ./.github/workflows/local/event-push-main.json
--P ubuntu-latest=catthehacker/ubuntu:act-latest
--s GITHUB_TOKEN

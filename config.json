@@ -1,0 +1,34 @@
+{
+    "DESIGN_NAME": "spm_chip_sg13g2",
+    "VERILOG_DEFINES": [
+        "FUNCTIONAL"
+    ],
+    "VERILOG_INCLUDE_DIRS": [
+    ],
+    "VERILOG_FILES": [
+        "design/spm.sv",
+        "src/spm_chip_sg13g2.sv"
+    ],
+    "CLOCK_PERIOD": 20,
+    "CLOCK_PORT": "clk_i",
+
+    "meta": {
+        "version": 2,
+        "flow": "Classic",
+        "substituting_steps": {
+            "Checker.YosysSynthChecks": null,
+            "Klayout.DRC": null,
+            "Magic.DRC": null,
+            "Netgen.LVS": null,
+            "OpenROAD.IOPlacement": null,
+            "OpenROAD.GlobalPlacementSkipIO": null,
+            "+Odb.SetPowerConnections": "OpenROAD.Padring",
+            "Checker.IllegalOverlap": null,
+            "Magic.WriteLEF": null,
+            "Odb.CheckDesignAntennaProperties": null,
+            "Checker.PowerGridViolations": null,
+            "Checker.DisconnectedPins": null,
+            "Checker.HoldViolations": null
+        }
+    }
+}
