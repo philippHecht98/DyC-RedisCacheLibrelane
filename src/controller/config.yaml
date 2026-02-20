@@ -1,6 +1,6 @@
 DESIGN_NAME: controller
 VERILOG_FILES:
-- ../top/src/cache_cfg_pkg.sv
+- ../redis_cache/src/cache_cfg_pkg.sv
 - src/ctrl_types_pkg.sv
 - src/get_fsm.sv
 - src/del_fsm.sv

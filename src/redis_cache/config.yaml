@@ -1,4 +1,4 @@
-DESIGN_NAME: top
+DESIGN_NAME: redis_cache
 VERILOG_FILES:
 - src/cache_cfg_pkg.sv
 - ../controller/src/ctrl_types_pkg.sv
@@ -13,7 +13,7 @@ VERILOG_FILES:
 - ../memory/src/memory_dynamic_registerarray.sv
 - ../memory/src/memory_cell.sv
 - ../memory/src/memory_block.sv
-- src/top.sv
+- src/redis_cache.sv
 VERILOG_INCLUDE_DIRS:
 - ../../obi/common_cells/include
 - ../../obi/include
