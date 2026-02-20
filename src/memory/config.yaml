@@ -1,6 +1,6 @@
 DESIGN_NAME: memory_block
 VERILOG_FILES:
-- ../chip/src/cache_cfg_pkg.sv
+- ../top/src/cache_cfg_pkg.sv
 - src/memory_block.sv
 - src/memory_cell.sv
 - src/memory_dynamic_registerarray.sv

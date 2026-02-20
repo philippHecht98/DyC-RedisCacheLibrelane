@@ -1,3 +1,5 @@
+`include "obi/typedef.svh"
+
 package if_types_pkg;
 
     import ctrl_types_pkg::operation_e;
@@ -26,6 +28,10 @@ package if_types_pkg;
     localparam [AddressBits-1:0] RegAddrData = RegAddrData_i[AddressBits-1:0];
     localparam [AddressBits-1:0] RegAddrKey  = RegAddrKey_i[AddressBits-1:0];
     localparam [AddressBits-1:0] RegAddrCtrl = RegAddrCtrl_i[AddressBits-1:0];
+
+    `OBI_TYPEDEF_DEFAULT_ALL(cache_obi, obi_pkg::ObiDefaultConfig)
+    typedef cache_obi_req_t obi_req_t;
+    typedef cache_obi_rsp_t obi_rsp_t;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Individual register bitfield typedefs for the register interface

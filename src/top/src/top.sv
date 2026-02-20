@@ -6,9 +6,9 @@ module top import if_types_pkg::*; import ctrl_types_pkg::*; #(
     /// The configuration of the subordinate ports (input ports).
     parameter obi_pkg::obi_cfg_t           ObiCfg      = obi_pkg::ObiDefaultConfig,
     /// The request struct for the subordinate ports (input ports).
-    parameter type                         obi_req_t   = logic,
+    parameter type                         obi_req_t   = if_types_pkg::obi_req_t,
     /// The response struct for the subordinate ports (input ports).
-    parameter type                         obi_rsp_t   = logic
+    parameter type                         obi_rsp_t   = if_types_pkg::obi_rsp_t
 ) (
     input logic clk,
     input logic rst_n,

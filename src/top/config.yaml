@@ -1,0 +1,28 @@
+DESIGN_NAME: top
+VERILOG_FILES:
+- src/cache_cfg_pkg.sv
+- ../controller/src/ctrl_types_pkg.sv
+- ../interface/src/if_types_pkg.sv
+- ../../obi/common_cells/src/cf_math_pkg.sv
+- ../../obi/src/obi_pkg.sv
+- ../interface/src/obi_interface.sv
+- ../controller/src/get_fsm.sv
+- ../controller/src/del_fsm.sv
+- ../controller/src/upsert_fsm.sv
+- ../controller/src/controller.sv
+- ../memory/src/memory_dynamic_registerarray.sv
+- ../memory/src/memory_cell.sv
+- ../memory/src/memory_block.sv
+- src/top.sv
+VERILOG_INCLUDE_DIRS:
+- ../../obi/common_cells/include
+- ../../obi/include
+USE_SLANG: true
+
+CLOCK_PERIOD: 10
+CLOCK_PORT: clk
+
+GRT_ALLOW_CONGESTION: true
+FP_CORE_UTIL: 35
+FP_ASPECT_RATIO: 1.0
+PL_TARGET_DENSITY: 0.55

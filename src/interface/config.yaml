@@ -1,9 +1,15 @@
 DESIGN_NAME: cache_interface
 VERILOG_FILES:
-- ../chip/src/cache_cfg_pkg.sv
+- ../top/src/cache_cfg_pkg.sv
 - ../controller/src/ctrl_types_pkg.sv
 - src/if_types_pkg.sv
+- ../../obi/common_cells/src/cf_math_pkg.sv
+- ../../obi/src/obi_pkg.sv
 - src/obi_interface.sv
+
+VERILOG_INCLUDE_DIRS:
+- ../../obi/common_cells/include
+- ../../obi/include
 
 
 USE_SLANG: true
