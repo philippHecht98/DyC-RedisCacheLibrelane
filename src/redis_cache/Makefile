@@ -1,6 +1,6 @@
 WORK_DIR=$(shell pwd)
-TOP=top
-TAG=top-run
+TOP=redis_cache
+TAG=redis_cache-run
 
 PDK_ROOT ?= $(WORK_DIR)/../../pdk
 PDK = ihp-sg13g2

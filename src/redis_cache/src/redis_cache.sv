@@ -1,4 +1,4 @@
-module top import if_types_pkg::*; import ctrl_types_pkg::*; #(
+module redis_cache import if_types_pkg::*; import ctrl_types_pkg::*; #(
     parameter int unsigned NUM_ENTRIES = cache_cfg_pkg::NUM_ENTRIES,
     parameter int unsigned KEY_WIDTH = cache_cfg_pkg::KEY_WIDTH,
     parameter int unsigned VALUE_WIDTH = cache_cfg_pkg::VALUE_WIDTH,

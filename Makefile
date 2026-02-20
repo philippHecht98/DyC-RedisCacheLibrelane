@@ -2,8 +2,8 @@
 SRC_DIR := src
 
 # Subdir name (under src/) that must run last. Override like:
-#   make TOP=top
-TOP ?= top
+#   make TOP=redis_cache
+TOP ?= redis_cache
 
 # Auto-detect all immediate subdirs that contain a Makefile: src/*/Makefile
 SUBDIRS := $(sort $(dir $(wildcard $(SRC_DIR)/*/Makefile)))
@@ -12,12 +12,10 @@ SUBDIRS := $(patsubst %/,%,$(SUBDIRS)) # strip trailing /
 # Everything except the LAST one
 FIRST := $(filter-out $(SRC_DIR)/$(TOP),$(SUBDIRS))
 
-.PHONY: librelane librelane-macros components top librelane-% view-% list refresh-obi-deps
+.PHONY: librelane components librelane-% view-% list refresh-obi-deps
 
 .NOTPARALLEL: librelane
-librelane: librelane-top
-
-librelane-macros: components
+librelane: librelane-redis_cache
 
 # Build all non-last blocks (parallelizable with -j)
 components: $(addprefix librelane-,$(notdir $(FIRST)))
