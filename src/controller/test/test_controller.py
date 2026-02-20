@@ -71,6 +71,7 @@ def test_controller_runner():
     
     # Deine Verilog Datei
     sources = [
+        src_path / ".." / ".." / "chip" / "src" / "cache_cfg_pkg.sv",
         src_path / "ctrl_types_pkg.sv",
         src_path / "get_fsm.sv",
         src_path / "upsert_fsm.sv",

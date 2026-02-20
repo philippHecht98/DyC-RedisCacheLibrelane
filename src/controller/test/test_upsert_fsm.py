@@ -147,6 +147,7 @@ def test_upsert_runner():
     
     # Deine Verilog Datei
     sources = [
+        proj_path / ".." / ".." / "chip" / "src" / "cache_cfg_pkg.sv",
         proj_path / ".." / "src" / "ctrl_types_pkg.sv",
         proj_path / ".." / "src" / "upsert_fsm.sv"
     ]

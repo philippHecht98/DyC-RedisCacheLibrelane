@@ -1,5 +1,5 @@
 module controller import ctrl_types_pkg::*; #(
-    parameter NUM_ENTRIES = 16
+    parameter int unsigned NUM_ENTRIES = cache_cfg_pkg::NUM_ENTRIES
 ) (
     input logic clk,
     input logic rst_n,
@@ -198,6 +198,8 @@ module controller import ctrl_types_pkg::*; #(
                 busy_valid_out = 1'b1;
                 hit_out = 1'b0;
                 hit_valid_out = 1'b1;
+                operation_out = NOOP;
+                operation_valid_out = 1'b1;
             end
             default: next_state = ST_IDLE;
         endcase

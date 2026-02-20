@@ -1,9 +1,7 @@
-module top #(
-    parameter ARCHITECTURE = 32,
-    parameter NUM_OPERATIONS = 2,
-    parameter NUM_ENTRIES = 16,
-    parameter KEY_WIDTH = 16,
-    parameter VALUE_WIDTH = 64,
+module top import if_types_pkg::*; import ctrl_types_pkg::*; #(
+    parameter int unsigned NUM_ENTRIES = cache_cfg_pkg::NUM_ENTRIES,
+    parameter int unsigned KEY_WIDTH = cache_cfg_pkg::KEY_WIDTH,
+    parameter int unsigned VALUE_WIDTH = cache_cfg_pkg::VALUE_WIDTH,
 
     /// The configuration of the subordinate ports (input ports).
     parameter obi_pkg::obi_cfg_t           ObiCfg      = obi_pkg::ObiDefaultConfig,
@@ -19,10 +17,6 @@ module top #(
     input obi_req_t obi_req_i,
     output obi_rsp_t obi_resp_o
 );
-
-    // Imports
-    import if_types_pkg::*;
-    import ctrl_types_pkg::*;
 
     // Interface <-> Controller
     reg_read_t reg_read_o;
@@ -81,7 +75,6 @@ module top #(
     );
 
     memory_block #(
-        .NUM_OPERATIONS(NUM_OPERATIONS),
         .NUM_ENTRIES(NUM_ENTRIES),
         .KEY_WIDTH(KEY_WIDTH),
         .VALUE_WIDTH(VALUE_WIDTH)

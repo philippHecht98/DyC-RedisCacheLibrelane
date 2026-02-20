@@ -1,7 +1,7 @@
 
 
 module del_fsm #(
-    parameter NUM_ENTRIES = 16
+    parameter int unsigned NUM_ENTRIES = cache_cfg_pkg::NUM_ENTRIES
 )(
     input logic clk,
     input logic rst_n,

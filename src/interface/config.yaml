@@ -1,8 +1,9 @@
 DESIGN_NAME: cache_interface
 VERILOG_FILES:
-- src/interface.sv
-- src/if_types_pkg.sv
+- ../chip/src/cache_cfg_pkg.sv
 - ../controller/src/ctrl_types_pkg.sv
+- src/if_types_pkg.sv
+- src/obi_interface.sv
 
 
 USE_SLANG: true

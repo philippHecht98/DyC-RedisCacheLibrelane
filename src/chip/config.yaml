@@ -31,6 +31,7 @@ meta:
 
 DESIGN_NAME: top
 VERILOG_FILES:
+- src/cache_cfg_pkg.sv
 - src/top.sv
 - src/chip.sv
 USE_SLANG: true
