@@ -3,9 +3,9 @@ module obi_cache_interface import if_types_pkg::*; #(
     /// The configuration of the subordinate ports (input ports).
     parameter obi_pkg::obi_cfg_t           ObiCfg      = obi_pkg::ObiDefaultConfig,
     /// The request struct for the subordinate ports (input ports).
-    parameter type                         obi_req_t   = logic,
+    parameter type                         obi_req_t   = if_types_pkg::obi_req_t,
     /// The response struct for the subordinate ports (input ports).
-    parameter type                         obi_rsp_t   = logic
+    parameter type                         obi_rsp_t   = if_types_pkg::obi_rsp_t
 ) (
     input logic clk, 
     input logic rst_n, 
@@ -135,6 +135,8 @@ module obi_cache_interface import if_types_pkg::*; #(
 
         word_addr_d_int = word_addr_d;
         word_addr_q_int = word_addr_q;
+        data_word_index = '0;
+        key_word_index  = '0;
 
         // Writes to the registers from OBI
         if (obi_req.req && obi_req.a.we) begin

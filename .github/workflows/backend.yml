@@ -21,6 +21,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Install Bender
+        run: |
+          curl --proto '=https' --tlsv1.2 https://pulp-platform.github.io/bender/init -sSf | sh
+          mkdir -p "$HOME/.local/bin"
+          mv ./bender "$HOME/.local/bin/bender"
+          chmod +x "$HOME/.local/bin/bender"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          bender --version
+
+      - name: Refresh OBI dependencies
+        run: make refresh-obi-deps
             
       - name: Run full librelane pipeline
         run: /root/.nix-profile/bin/nix-shell librelane --run "make librelane"

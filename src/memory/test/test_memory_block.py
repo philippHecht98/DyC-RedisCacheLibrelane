@@ -516,6 +516,7 @@ def test_memory_block_runner():
     }
 
     sources = [
+        proj_path / ".." / ".." / "top" / "src" / "cache_cfg_pkg.sv",
         proj_path / ".." / "src" / "memory_block.sv",
         proj_path / ".." / "src" / "memory_cell.sv",
         proj_path / ".." / "src" / "memory_dynamic_registerarray.sv"

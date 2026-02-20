@@ -1,3 +1,5 @@
+`include "obi/typedef.svh"
+
 package if_types_pkg;
 
     import ctrl_types_pkg::operation_e;
@@ -5,8 +7,8 @@ package if_types_pkg;
     //-- Configurable values -----------------------------------------------------------------------
     localparam int RegAlignBytes = 4; // regs aligned to this many bytes (4 -> 32-bit aligned)
 
-    localparam int RegDataWidth = 64; // width of the data register (must be a multiple of 32 bits)
-    localparam int RegKeyWidth  = 32; // width of the key register (must be a multiple of 32 bits)
+    localparam int RegDataWidth = cache_cfg_pkg::VALUE_WIDTH; // width of the data register (must be a multiple of 32 bits)
+    localparam int RegKeyWidth  = cache_cfg_pkg::KEY_WIDTH; // width of the key register (must be a multiple of 32 bits)
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Address Offsets //
@@ -26,6 +28,10 @@ package if_types_pkg;
     localparam [AddressBits-1:0] RegAddrData = RegAddrData_i[AddressBits-1:0];
     localparam [AddressBits-1:0] RegAddrKey  = RegAddrKey_i[AddressBits-1:0];
     localparam [AddressBits-1:0] RegAddrCtrl = RegAddrCtrl_i[AddressBits-1:0];
+
+    `OBI_TYPEDEF_DEFAULT_ALL(cache_obi, obi_pkg::ObiDefaultConfig)
+    typedef cache_obi_req_t obi_req_t;
+    typedef cache_obi_rsp_t obi_rsp_t;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Individual register bitfield typedefs for the register interface

@@ -6,10 +6,9 @@
  */
 
 module memory_block #(
-    parameter NUM_OPERATIONS = 2,
-    parameter NUM_ENTRIES = 16,
-    parameter KEY_WIDTH = 16,
-    parameter VALUE_WIDTH = 64
+    parameter int unsigned NUM_ENTRIES = cache_cfg_pkg::NUM_ENTRIES,
+    parameter int unsigned KEY_WIDTH = cache_cfg_pkg::KEY_WIDTH,
+    parameter int unsigned VALUE_WIDTH = cache_cfg_pkg::VALUE_WIDTH
 )(
     input logic clk,
     input logic rst_n,
