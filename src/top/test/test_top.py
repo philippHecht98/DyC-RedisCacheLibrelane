@@ -33,26 +33,6 @@ class TopTester:
         for _ in range(num_cycles):
             await RisingEdge(self.clk)
 
-
-@cocotb.test()
-async def test_reset(dut):
-    """Test: Verify controller initializes to IDLE state after reset."""
-    tester = TopTester(dut)
-    
-    # Start clock
-    clock = Clock(dut.clk, 10, unit="us")
-    cocotb.start_soon(clock.start())
-    
-    
-    # Apply reset
-    await tester.reset()
-    
-    # Verify state is IDLE (0)
-    assert tester.u_ctrl.state.value == 0, f"State mismatch: {dut.u_ctrl.state.value} != 0 (IDLE)"
-    assert tester.u_mem.used_entries.value == 0b0, f"Used mismatch: {dut.u_mem.used_entries.value} != 0 (Empty)"
-   
-    dut._log.info("✓ Reset test passed")
-
 def pack_obi_req(addr=0, we=0, be=0, wdata=0, req=0, aid=0, a_optional=0):
     """
     Hilfsfunktion, um das OBI Request Struct in einen flachen Bitvektor zu packen.
@@ -132,6 +112,25 @@ async def execute_cache_operation(dut, tester, operation, key, value=0):
     dut._log.info(f"Operation {operation.upper()} abgeschlossen (Dauer: {cycles} Zyklen).")
 
 @cocotb.test()
+async def test_reset(dut):
+    """Test: Verify controller initializes to IDLE state after reset."""
+    tester = TopTester(dut)
+    
+    # Start clock
+    clock = Clock(dut.clk, 10, unit="us")
+    cocotb.start_soon(clock.start())
+    
+    
+    # Apply reset
+    await tester.reset()
+    
+    # Verify state is IDLE (0)
+    assert tester.u_ctrl.state.value == 0, f"State mismatch: {dut.u_ctrl.state.value} != 0 (IDLE)"
+    assert tester.u_mem.used_entries.value == 0b0, f"Used mismatch: {dut.u_mem.used_entries.value} != 0 (Empty)"
+   
+    dut._log.info("✓ Reset test passed")
+
+@cocotb.test()
 async def test_upsert_simple(dut):
     """Test: Insert a value into the cache and verify success."""
     tester = TopTester(dut)
@@ -149,7 +148,6 @@ async def test_upsert_simple(dut):
     assert tester.u_mem.used_entries.value == 0b1, "Fehler: Das used-Bit für den ersten Eintrag wurde nicht gesetzt!"
     
     dut._log.info("✓ Upsert test passed")
-
 
 @cocotb.test()
 async def test_upsert_simple2(dut):
