@@ -220,7 +220,7 @@ def test_top_runner():
     sources = [
         obi_root / "obi" / ".bender" / "git" / "checkouts" / "common_cells-f02d7eeaa3b89547" / "src" / "cf_math_pkg.sv",
         obi_root / "obi" / "src" / "obi_pkg.sv",
-        src_root / "top" / "src" / "cache_cfg_pkg.sv",
+        src_root / "redis_cache" / "src" / "cache_cfg_pkg.sv",
         src_root / "controller" / "src" / "ctrl_types_pkg.sv",
         src_root / "interface" / "src" / "if_types_pkg.sv",
         src_root / "interface" / "src" / "obi_interface.sv",
@@ -231,7 +231,7 @@ def test_top_runner():
         src_root / "memory" / "src" / "memory_block.sv",
         src_root / "memory" / "src" / "memory_cell.sv",
         src_root / "memory" / "src" / "memory_dynamic_registerarray.sv",
-        src_root / "top" / "src" / "top.sv",
+        src_root / "redis_cache" / "src" / "redis_cache.sv",
     ]
 
     
@@ -255,7 +255,7 @@ def test_top_runner():
 
     runner.build(
         sources=sources,
-        hdl_toplevel="top",
+        hdl_toplevel="redis_cache",
         always=True, 
         waves=True,
         timescale=("1ns", "1ps"),
@@ -265,8 +265,8 @@ def test_top_runner():
     )
 
     runner.test(
-        hdl_toplevel="top", 
-        test_module="test_top", 
+        hdl_toplevel="redis_cache", 
+        test_module="test_redis_cache", 
         waves=True
     )
 
