@@ -1,2 +1,0 @@
-# Vivado Setup (Mac)
-

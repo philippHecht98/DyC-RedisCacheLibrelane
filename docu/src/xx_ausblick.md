@@ -1,2 +1,0 @@
-# Ausblick / Zusätzliche Funktionalitäten
-

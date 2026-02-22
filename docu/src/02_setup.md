@@ -1,5 +1,5 @@
 # Projekt Setup
 
-## Pipeline
+## Repo Struktur
 
-## Architektur
+## Pipelines

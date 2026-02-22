@@ -12,6 +12,7 @@ Das Ziel ist es, grundlegende Speicheroperationen direkt in Hardware abzubilden,
 *   **Automatische Ablaufzeit (TTL - Time-to-Live)**
 
 
-Die Motivation liegt darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt.
+Die Motivation liegt darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt. 
 
 ![Speicherblöcke](./diagramme/02_architektur.drawio.svg)
+ 

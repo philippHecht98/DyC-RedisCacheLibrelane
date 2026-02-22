@@ -7,7 +7,7 @@ author:
   - "Philipp Hecht"
   - "Luca Pinnekamp"
   - "Luca Schmid"
-date: "17. Februar 2026"
+date: "27. Februar 2026"
 lang: "de-DE"
 classoption: titlepage
 header-includes:
