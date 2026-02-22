@@ -92,7 +92,9 @@ Diese Funktionalität wird für den darüber ligenenden Controller benötigt. Da
 ob der Cache vollständig gefüllt ist oder ob noch freie Zellen vorhanden sind. Zunächst bestand die Idee, 
 die einzelnen Schlüssel zeitlich auslaufen zu lassen (ählich zu Redis). Aufgrund von Zeitmangel, wurde diese 
 Funktionalität jedoch nicht implementiert, sodass als Verkürzung die Gültigkeit eines Schlüssel-Wert-Paares 
-durch das Vorhandensein eines Schlüssels (key_out != 0) definiert wurde.
+durch das Vorhandensein eines Schlüssels (key_out != 0) definiert wurde. Gleichzeitig beschlossen wir, dass die 
+Übergeordnete Verwaltungslogik, welche Zellen aktuell *frei* sind innerhalb des Controllers stattfinden soll, was die Implementierung der Memory Einheit vereinfachte. Auch wollten wir nicht den Used-Wertes einer einzelnen Zelle
+über ein eigenes Register abbilden um damit auch hier eine Optimierung zu erreichen. 
 
 ### Memory Block
 
@@ -106,14 +108,14 @@ näher eingegangen:
 
 #### Einfügen von Schlüssel-Wert Paaren
 
-Das Einfügen eines Schlüssel-Wert-Paares wird durch durch ein Signal des Controllers
+Das Einfügen eines Schlüssel-Wert Paares wird durch ein Signal des Controllers
 ausgelöst. Zusammen mit dem Setzen des ausgewählten Indexes (Der Controller nutzt 
 hierfür die *used* Signale der einzelnen Zellen (Hot-Wire)) wird die entsprechende Zelle 
 aktiviert, um die Daten zu speichern. Bei der nächsten positiven Taktflanke werden 
 die Daten in der Zelle gespeichert. 
 
 Als eine Optimierung wird die Löschoperation als Sonderfall eines Schreibvorgangs 
-behandelt. Das bedeutet, dass beim Löschen eines Schlüssel-Wert-Paares die Zelle mit 
+behandelt. Das bedeutet, dass beim Löschen eines Schlüssel-Wert Paares die Zelle mit 
 einem Schlüssel von 0 beschrieben wird, wodurch sie als ungültig markiert wird. 
 
 ```systemverilog
@@ -173,6 +175,12 @@ gesamte Zellen auf *0* gesetzt:
     );
 ```
 
+Nachfolgendes Architekturdiagramm zeigt den Aufbau des Memory Blockes und deren Teilkomponenten 
+als auch die Signale, welche für die Interaktion mit dem übergeordneten Controller definiert 
+wurden:
+
+![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
+
 
 #### Zusammenhang mit Controller
 
@@ -204,23 +212,32 @@ Kalkulation ob der Upsert ein Update eines Eintrages oder das Einfügen eines ne
 **UPSERT / DELETE -Operation:**
 
 1. **Schritt 1 - Positive Flanke**: Der Controller wechselt zu einem *UPSERT*-Zustand. Auf den Schlüssel und Daten Kabeln
-des Memory Blockes werden die entsprechenden Werte bereitgestellt. Zusätzlich wird das Steuersignal für das Einfügen bzw. des Löschen als auch der Index für relevante Zelle gesetzt. 
+des Memory Blockes werden die entsprechenden Werte bereitgestellt. Zusätzlich wird das Steuersignal für das Einfügen bzw.
+des Löschen als auch der Index für relevante Zelle gesetzt. 
 
 2. **Schritt 2 - Negative Flanke**: Zur fallenden Flanke liegen die Schüssel und Daten Werte bereits an den Eingängen aller Zellen.
 Durch die Logik des Memory Blockes wird abhängig vom gesetzten Indexes und des Schreibsignals allerdings nur an der zum Index
 zugehörigen Zelle das *Schreib-Flag* angelegt. Dadurch wird nur diese Zelle die Daten in ihren Registern speichern. Im Falle einer
-Löschoperation, werden an die Schlüssel und Dateneingägne der Zellen *0* angelegt. Mit der fallenden Flanke werden die Daten in der Zelle gespeichert bzw. gelöscht.
+Löschoperation, werden an die Schlüssel und Dateneingägne der Zellen *0* angelegt. Mit der fallenden Flanke werden die Daten in der 
+Zelle gespeichert bzw. gelöscht.
 
-1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. Zusätzlich wird im Falle einer Upsert Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
+1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. 
+Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
 
 
 **Timing-Diagramm der Operationen:**
 
+Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. Nachfolgende Abbildungen zeigen zunächst die theoretische Planung als auch den simulierten Durchlauf der Taktzyklen: 
+
+TODO: Diagramm erstellen
 TODO: Diagramm erstellen
 
-Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. 
 
 ## Controller
+
+Zur einfacheren Verwaltung der Speicherzellen und der Bereitstellung der Funktionen des Caches, wurde ein übergeordneter Controller implementiert. Dieser steuert die Interaktion zwischen den einzelnen Speicherzellen und stellt die Funktionen zum Einfügen, Abrufen und Löschen von Schlüssel-Wert-Paaren bereit. Bei anliegenden Anfragen wechelt der Controller in einen Unterzustand, welcher die entsprechenden Signale an den Memory Block sendet, um die gewünschte Operation durchzuführen. Diese Art der Implementierung war für die initiale Planung vorgesehen, um die Komplexität des gesamten Kontrollers zu reduzieren. Rückblickend wären die Unterzustände jedoch nicht notwendig gewesen, da durch die von uns durchgeführten Unterzustände lediglich nur eine positive Taktflanke benötigen. Erste Entwürfe der State Machine sahen vor, dass die einzelnen Operationen mehrere Taktzyklen benötigen bevor sie abgeschlossen sind. Näheres hierzu wird im Kapitel TODO: beschrieben. 
+
+Die Implementierung der Sub-States werden in den nachfolgenden drei Unterkapiteln beschrieben. 
 
 ### Main Controller (Luca S Luca P)
 
@@ -229,6 +246,23 @@ Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergä
 ### UPSERT (Luca S)
 
 ### DELETE (Philipp)
+
+**Beschreibung der State Machine für DELETE Sub-states:**
+
+Die DELETE FSM verwaltet den Löschprozess durch drei Zustände:
+
+1. **DEL_ST_START**: In diesem Zustand wird keine Operation ausgeführt; das Modul wartet auf die Aktivierung durch den Controller. Sobald das Modul aktiviert wird (dediziertes Steuersignal), springt die State Machine in den nächsten Zustand, um die Löschoperation einzuleiten. 
+
+2. **DEL_ST_DELETE**: Die Statemachine behandelt das Löschen eines Schlüssels aus dem Memory Block. Aus dem eingehenden HIT-Signal wird vom Memory Block erkannt, dass der Schlüssel abgespeicher worden ist. Sollte dies der Fall sein, wird ein Löschsignal an den Memory Block gesendet, welcher, in Kombination mit dem bereits anliegendem Schlüssel, spätestens zur negativen Taktflanke vom Memory Block durchgeführt wird. 
+
+3. **DEL_ST_ERROR**: Wenn der Memory Block keine Übereinstimmung zum zu löschenden Schlüssel findet (Hit-Signal bleibt Low), wechselt die FSM in diesen Fehlerzustand. Der Substate übermittelt an den übergeordneten Controller, dass die Löschoperation nicht erfolgreich war. 
+
+Beide Zustände DEL_ST_DELETE und DEL_ST_ERROR wechseln zur nächsten positiven Flanke zurück in den DEL_ST_START Zustand, um die nächste Löschoperation entgegenzunehmen.
+
+Dieses Timing ermöglicht es, dass die DELETE-Operation in nur zwei Taktzyklen abgeschlossen wird. 
+Die zuvor beschriebene `always_comb`-Logik des Memory Blockes ermöglicht es direkt einen Löschvorgang abzuschließen.
+
+
 
 ## Obi interface 
 

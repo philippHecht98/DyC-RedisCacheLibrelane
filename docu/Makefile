@@ -31,7 +31,7 @@ CHAPTERS = $(SOURCE_DIR)/00_title.md \
 
 PANDOC_FLAGS = -s --toc -N \
                --resource-path=.:$(SOURCE_DIR):$(DIAGRAM_DIR) \
-               --variable geometry:margin=2.5cm \
+               --variable geometry:margin=2cm \
                --variable fontsize=11pt \
                --variable lang=de-DE \
                --variable "header-includes:\pagenumbering{gobble}" \
