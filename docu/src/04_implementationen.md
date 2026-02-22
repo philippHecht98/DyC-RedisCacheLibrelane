@@ -235,15 +235,97 @@ TODO: Diagramm erstellen
 
 ## Controller
 
-Zur einfacheren Verwaltung der Speicherzellen und der Bereitstellung der Funktionen des Caches, wurde ein übergeordneter Controller implementiert. Dieser steuert die Interaktion zwischen den einzelnen Speicherzellen und stellt die Funktionen zum Einfügen, Abrufen und Löschen von Schlüssel-Wert-Paaren bereit. Bei anliegenden Anfragen wechelt der Controller in einen Unterzustand, welcher die entsprechenden Signale an den Memory Block sendet, um die gewünschte Operation durchzuführen. Diese Art der Implementierung war für die initiale Planung vorgesehen, um die Komplexität des gesamten Kontrollers zu reduzieren. Rückblickend wären die Unterzustände jedoch nicht notwendig gewesen, da durch die von uns durchgeführten Unterzustände lediglich nur eine positive Taktflanke benötigen. Erste Entwürfe der State Machine sahen vor, dass die einzelnen Operationen mehrere Taktzyklen benötigen bevor sie abgeschlossen sind. Näheres hierzu wird im Kapitel TODO: beschrieben. 
+
+### Main Controller (Luca S, Luca P)
+
+Zur einfacheren Verwaltung der Speicherzellen und der Bereitstellung der Funktionen des Caches, wurde ein 
+übergeordneter Controller implementiert. Dieser steuert die Interaktion zwischen den einzelnen Speicherzellen 
+und stellt die Funktionen zum Einfügen, Abrufen und Löschen von Schlüssel-Wert-Paaren bereit. 
+
+Die Architektur ist hierarchisch aufgebaut. Der Main Controller implementiert eine übergeordnete State Machine, 
+die im `IDLE`-Zustand auf Anfragen wartet. Bei anliegenden Anfragen wechelt der Controller in einen Unterzustand, 
+welcher die entsprechenden Signale an den Memory Block sendet, um die gewünschte Operation durchzuführen. 
+
+Diese Art der Implementierung war für die initiale Planung vorgesehen, um die Komplexität des gesamten Kontrollers zu reduzieren. Rückblickend wären die Unterzustände jedoch nicht notwendig gewesen, da durch die von uns durchgeführten Unterzustände lediglich nur eine positive Taktflanke benötigen. Erste Entwürfe der State Machine sahen vor, dass die einzelnen Operationen mehrere Taktzyklen benötigen bevor sie abgeschlossen sind. Näheres hierzu wird im Kapitel TODO: beschrieben. 
 
 Die Implementierung der Sub-States werden in den nachfolgenden drei Unterkapiteln beschrieben. 
 
-### Main Controller (Luca S Luca P)
+
+**Schnittstelle zu Sub-Controllern**
+
+Um die Komplexität zu kapseln, verfügen alle Sub-Controller über ein einheitliches Interface-Konzept zur Kommunikation mit dem Main Controller:
+
+- **`en` (Enable):** Ein Signal vom Main Controller an den Sub-Controller, um dessen FSM oder Logik zu starten.
+- **`cmd` (Command/Data):** Status Signale der Sub-Controller. (Error/Done)
+- **`enter` (Enter):** Signalisiert den Eintritt in den Zustand des Sub-Controllers. Dient zur Initialisierung der Sub-FSM.
+
+Dies ermöglicht es dem Main Controller, generisch auf das Ende einer Operation zu warten, ohne die internen Details der Operation kennen zu müssen.
+
+```systemverilog
+// Pseudo-Code Beispiel für die State-Wechsel vom Main Controller zu den Sub-Controllern
+always_comb begin
+    // Default Zuweisungen
+    next_state = state;
+
+    case (state)
+        IDLE: begin
+            busy = 1'b1;
+            
+            case (operation_in)
+                    READ: begin
+                        next_state = ST_GET;
+                    end
+                    // ... Weitere Operationen ...
+            endcase
+        end
+        ST_GET: begin
+            // ...                              Werte an Sub-Controller übergeben
+            if (get_error) next_state = ST_ERR; // Error handling
+            else if(get_done) begin             // Operation erfolgreich
+                next_state = IDLE;
+                busy = 1'b0;
+            end
+        end
+        // ... Weitere Zustände ...
+    endcase
+end
+```
 
 ### GET (Luca P)
 
 ### UPSERT (Luca S)
+
+Der UPSERT-Controller ("Update or Insert") ist für das Schreiben von Daten in den Cache verantwortlich. Er wurde so implementiert, dass er unabhängig vom Basistemplate agiert und die spezifische Logik für das Hinzufügen oder Aktualisieren von Key-Value-Paaren kapselt.
+
+Die Key-Value Werte liegen direkt vom OBI-Interface am Memory-Block an. (Siehe Kapitel Architektur) 
+Somit steuert die Implementierung nur noch die Signale zur Verarbeitung dieser Werte im Memory-Block.
+
+Wenn der empfangene Key-Wert bereits im Memory vorhanden ist, dann gibt der Memory-Block dem UPSERT-Controller ein positives "hit" signal und dessen "index" zurück. Wenn der Key-Wert nicht vorhanden ist liegt ein negatives "hit" signal an.
+Außerdem übergibt der Memory Block die aktuell benutzen Indizes "used".
+
+Anhand der Werte hit, idx_out und used kann in nur einem Zyklus entschieden werden, ob oder an welchem Index der anliegende Wert gespeichert werden soll:
+
+```systemverilog
+// Pseudo-Code Beispiel UPSERT
+always_comb begin
+    if (hit) begin
+        // key existiert
+        // Übergebenen Index an Memory Block übergeben
+
+    end else if (!hit && !(&used)) begin
+        // key existiert nicht, aber noch Platz im Memory
+        // korrekten key finden und übergeben
+        for (int j = 0; j < NUM_ENTRIES; j++) begin
+            if (!used[j] && (idx_out == 0)) begin
+                idx_out[j] = 1'b1;
+            end
+        end
+
+    end else begin
+        // key existiert nicht und kein Platz im Memory
+        // Error an Main Controller übergeben
+    end
+```
 
 ### DELETE (Philipp)
 

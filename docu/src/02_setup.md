@@ -15,7 +15,7 @@ zu arbeiten. Innerhalb der Dockerfile werden benötigte Bibliotheken (bspw. Veri
 einzelnen Sub-Module des Projektes () zu bauen als auch zu testen.
 
 ## Pipelines
-
+ 
 Als ersten wichtigen Punkt für das Zusammenarbeiten während der Projektphase wurde das Aufsetzen von Pipelines angegangen. Hierbei wurden zwei 
 GitHub Workflows implementiert, welche unabhängig voneinander eine Frontend / Backendpipeline triggern. Aufgabe der Frontend Pipeline ist das 
 ausführen sämtlicher Tests für die Submodule als E2E Tests der gesamten Hardware. 
