@@ -140,8 +140,8 @@ async def test_upsert_simple(dut):
     # 1. Reset
     await tester.reset()
     
-    test_key = 0xDEADBEEF
-    test_val = 0x12345678
+    test_key = 0xBEEF
+    test_val = 0x8765FFFF
 
     await execute_cache_operation(dut, tester, 'UPSERT', key=test_key, value=test_val)
 
