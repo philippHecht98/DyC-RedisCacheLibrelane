@@ -97,7 +97,9 @@ entsprechende Register schreibt, die Daten an den Cache Controller weitergeleite
 
 - IDLE: In diesem Zustand wartet die State Machine auf einen OBI Request. Sobald ein Operationscode über das entsprechende Register geschrieben wird, übermittelt das
 Interface die Daten an den Controller und wechselt in einen WAIT_FOR_CONTROLLER Zustand.
+
 - WAIT_FOR_CONTROLLER: In diesem Zustand wartet die State Machine auf eine Rückmeldung des Cache Controllers. Sobald der Controller die Daten verarbeitet hat, wechselt die State Machine zurück in den IDLE Zustand und ist bereit für die nächste Transaktion. Während dieser Phase blockiert die State Machine weitere OBI Requests und setzt `rvalid` auf 0, um der Applikation mitzuteilen, dass die Daten noch nicht zurückgegeben werden können.
+
 - COMPLETE: In diesem Zustand werden die Daten an die Applikation zurückgegeben. Sobald die Daten zurückgegeben wurden, wechselt die State Machine zurück in den IDLE Zustand.
 
 Es zeigte sich jedoch, dass diese Art der Implementierung nicht sonderbar kombinierbar mit dem Ablauf des OBI Protokolles einhergehend war. Erste Implementierungen blockierten dabei die gesamte OBI Crossbar und blockierten damit nicht nur den Cache als auch die CPU selbst (vermutlich). 
