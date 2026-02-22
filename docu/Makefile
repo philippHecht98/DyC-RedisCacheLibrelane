@@ -12,8 +12,9 @@ CHAPTERS = $(SOURCE_DIR)/00_title.md \
            $(SOURCE_DIR)/05_croc.md \
            $(SOURCE_DIR)/06_obi.md \
            $(SOURCE_DIR)/07_FPGA.md \
-           $(SOURCE_DIR)/08_riscV.md \
+           $(SOURCE_DIR)/08_c_lib.md \
            $(SOURCE_DIR)/09_backendPipeline.md \
+           $(SOURCE_DIR)/xx_Tests.md \
            $(SOURCE_DIR)/10_learnings.md \
            $(SOURCE_DIR)/11_ausblick.md \
            $(SOURCE_DIR)/12_vivado_mac.md

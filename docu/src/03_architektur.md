@@ -1,8 +1,6 @@
 # Architektur
 
-Notiz: Key = 0 bedeutet, dass die Speicherzelle nicht belegt ist (siehe memory_cell)
-
-## Alles richtung Architektur
+## Alles richtung Architektur (?)
 
 ![Architektur](./diagramme/03_architektur_detailliert.drawio.svg)
 TODO: Darstellung des Prozesses zur Architektur
@@ -10,12 +8,13 @@ TODO: Erklärung der einzelnen Module
 
 TODO: Verlinkung auf Implementierungs.md 
 
-## Statemachine
+## Statemachine (Luca S)
 
 ![Statemachine](./diagramme/04_statemachine.drawio.svg)
 
 Ursprünglich wurde GET, UPSERT und DELETE mit mehreren States designed. Bei der Implementation ist aufgekommen, dass alles mit einem Sate geht.
-Die Implementation für DELETE wurde aus Zeitrgründen nicht refactored. `(Änderung der Implementation im Ausblick beschreiben oder zumindest in eine Liste eintragen)`
+Die Implementation für DELETE wurde aus Zeitrgründen nicht refactored. 
+TODO: (Änderung der Implementation im Ausblick beschreiben oder zumindest in eine Liste eintragen)
 
 
 TODO: erklären, warum wir sub states wollten
@@ -27,7 +26,7 @@ cmd.done, cmd.error übergabe
 en und enter
 ```
 
-## Taktzyklus Beispiele
+## Taktzyklus Beispiele (Luca S)
 
 TODO: darstellen der initialen Planung wie wir nur zw. controller und memory block arbeiten wollten
 TODO: Takt Diagramm erstellen, welches genau auf die einzelnen Phasen eingeht

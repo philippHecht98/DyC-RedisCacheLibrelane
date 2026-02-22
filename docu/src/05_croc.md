@@ -1,4 +1,4 @@
-# CROC
+# CROC (Luca P)
 
 ## CROC Architektur
 
