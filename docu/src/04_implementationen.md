@@ -93,9 +93,7 @@ Diese Funktionalität wird für den darüber ligenenden Controller benötigt. Da
 ob der Cache vollständig gefüllt ist oder ob noch freie Zellen vorhanden sind. Zunächst bestand die Idee, 
 die einzelnen Schlüssel zeitlich auslaufen zu lassen (ählich zu Redis). Aufgrund von Zeitmangel, wurde diese 
 Funktionalität jedoch nicht implementiert, sodass als Verkürzung die Gültigkeit eines Schlüssel-Wert-Paares 
-durch das Vorhandensein eines Schlüssels (key_out != 0) definiert wurde. Gleichzeitig beschlossen wir, dass die 
-Übergeordnete Verwaltungslogik, welche Zellen aktuell *frei* sind innerhalb des Controllers stattfinden soll, was die Implementierung der Memory Einheit vereinfachte. Auch wollten wir nicht den Used-Wertes einer einzelnen Zelle
-über ein eigenes Register abbilden um damit auch hier eine Optimierung zu erreichen. 
+durch das Vorhandensein eines Schlüssels (key_out != 0) definiert wurde.
 
 ### Memory Block
 
@@ -109,14 +107,14 @@ näher eingegangen:
 
 #### Einfügen von Schlüssel-Wert Paaren
 
-Das Einfügen eines Schlüssel-Wert Paares wird durch ein Signal des Controllers
+Das Einfügen eines Schlüssel-Wert-Paares wird durch durch ein Signal des Controllers
 ausgelöst. Zusammen mit dem Setzen des ausgewählten Indexes (Der Controller nutzt 
 hierfür die *used* Signale der einzelnen Zellen (Hot-Wire)) wird die entsprechende Zelle 
 aktiviert, um die Daten zu speichern. Bei der nächsten positiven Taktflanke werden 
 die Daten in der Zelle gespeichert. 
 
 Als eine Optimierung wird die Löschoperation als Sonderfall eines Schreibvorgangs 
-behandelt. Das bedeutet, dass beim Löschen eines Schlüssel-Wert Paares die Zelle mit 
+behandelt. Das bedeutet, dass beim Löschen eines Schlüssel-Wert-Paares die Zelle mit 
 einem Schlüssel von 0 beschrieben wird, wodurch sie als ungültig markiert wird. 
 
 ```systemverilog
@@ -176,12 +174,6 @@ gesamte Zellen auf *0* gesetzt:
     );
 ```
 
-Nachfolgendes Architekturdiagramm zeigt den Aufbau des Memory Blockes und deren Teilkomponenten 
-als auch die Signale, welche für die Interaktion mit dem übergeordneten Controller definiert 
-wurden:
-
-![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
-
 
 #### Zusammenhang mit Controller
 
@@ -213,24 +205,14 @@ Kalkulation ob der Upsert ein Update eines Eintrages oder das Einfügen eines ne
 **UPSERT / DELETE -Operation:**
 
 1. **Schritt 1 - Positive Flanke**: Der Controller wechselt zu einem *UPSERT*-Zustand. Auf den Schlüssel und Daten Kabeln
-des Memory Blockes werden die entsprechenden Werte bereitgestellt. Zusätzlich wird das Steuersignal für das Einfügen bzw.
-des Löschen als auch der Index für relevante Zelle gesetzt. 
+des Memory Blockes werden die entsprechenden Werte bereitgestellt. Zusätzlich wird das Steuersignal für das Einfügen bzw. des Löschen als auch der Index für relevante Zelle gesetzt. 
 
 2. **Schritt 2 - Negative Flanke**: Zur fallenden Flanke liegen die Schüssel und Daten Werte bereits an den Eingängen aller Zellen.
 Durch die Logik des Memory Blockes wird abhängig vom gesetzten Indexes und des Schreibsignals allerdings nur an der zum Index
 zugehörigen Zelle das *Schreib-Flag* angelegt. Dadurch wird nur diese Zelle die Daten in ihren Registern speichern. Im Falle einer
-Löschoperation, werden an die Schlüssel und Dateneingägne der Zellen *0* angelegt. Mit der fallenden Flanke werden die Daten in der 
-Zelle gespeichert bzw. gelöscht.
+Löschoperation, werden an die Schlüssel und Dateneingägne der Zellen *0* angelegt. Mit der fallenden Flanke werden die Daten in der Zelle gespeichert bzw. gelöscht.
 
-1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. 
-Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
-
-
-**Timing-Diagramm der Operationen:**
-
-Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. Nachfolgende Abbildungen zeigen zunächst die theoretische Planung als auch den simulierten Durchlauf der Taktzyklen: 
-
-TODO: Diagramm erstellen
+1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. Zusätzlich wird im Falle einer Upsert Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
 
 
 ## Controller
@@ -352,4 +334,4 @@ Die zuvor beschriebene `always_comb`-Logik des Memory Blockes ermöglicht es dir
 Philipp Hecht
 
 Als übergeordneten Block wurde für die Anbindung des Caches eine OBI (Open Bus Interface) Schnittstelle implementiert. Diese 
-ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](#obi) beschrieben.
+ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](./06_obi.md) beschrieben.
