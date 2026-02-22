@@ -1,9 +1,14 @@
 \newpage
 # Einleitung / Idee
 
+[Link zur custom Hardware]()
+[Link zu Risc-V Tapeout]()
+
 Die ursprüngliche Idee dieses Projekts ist der Entwurf und die Implementierung eines kompakten, synthetisierbaren Key-Value-Stores, inspiriert von Redis, auf RTL-Ebene (für FPGAs oder ASICs).
 
-Das Ziel ist es, grundlegende Speicheroperationen direkt in Hardware abzubilden, um eine hohe Performance und geringe Latenz zu erreichen. Die ursprünglich geplanten Kernfunktionen sind:
+TODO: Ausformulieren, warum wir uns hierfür entschieden haben -> Semirealer use case; Vorstellbar was genau passieren soll -> Da redis bekannt
+
+Dabei war das Ziel, grundlegende Speicheroperationen direkt in Hardware abzubilden, um eine hohe Performance und geringe Latenz zu erreichen. Die geplanten Kernfunktionen sind:
 
 *   **Einfügen von Schlüssel-Wert Paaren (Key-Value Insertion)**
 *   **Abrufen von Werten anhand von Schlüsseln (Value Retrieval)**
@@ -14,5 +19,5 @@ Das Ziel ist es, grundlegende Speicheroperationen direkt in Hardware abzubilden,
 
 Die Motivation liegt darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt. 
 
-![Speicherblöcke](./diagramme/02_architektur.drawio.svg)
- 
+![Speicherblöcke](./diagramme/02_architektur.drawio.svg) TODO: Ich würde zunächst nur Controller und Memory Block zeigen
+

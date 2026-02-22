@@ -43,3 +43,8 @@ Die OBI Response wird von dem Slave (Interface) an den Master versendet. Die 37 
 | r                 | 1             | Optional: Ein optionales Signal für die Response (in der Minimal-Konfiguration 1 Bit). |
 | gnt               | 1             | Grant: Handshake-Signal. Der Slave setzt dieses Bit auf 1, um zu signalisieren: "Ich habe deinen Request (req=1) akzeptiert und verarbeite ihn" |
 | rvalid            | 1             | Response Valid: Wird 1, wenn die zurückgegebenen Daten in r.rdata gültig sind. |
+
+TODO: Versuch der eigenen Implementierung, sowie deren Scheitern und umschwung auf bereits bestehendes + Abwandlung
+
+TODO: Darstellung in Implementierung
+
