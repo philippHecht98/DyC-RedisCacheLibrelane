@@ -97,6 +97,51 @@ entsprechende Register schreibt, die Daten an den Cache Controller weitergeleite
 
 - IDLE: In diesem Zustand wartet die State Machine auf einen OBI Request. Sobald ein Operationscode über das entsprechende Register geschrieben wird, übermittelt das
 Interface die Daten an den Controller und wechselt in einen WAIT_FOR_CONTROLLER Zustand.
+- WAIT_FOR_CONTROLLER: In diesem Zustand wartet die State Machine auf eine Rückmeldung des Cache Controllers. Sobald der Controller die Daten verarbeitet hat, wechselt die State Machine zurück in den IDLE Zustand und ist bereit für die nächste Transaktion. Während dieser Phase blockiert die State Machine weitere OBI Requests und setzt `rvalid` auf 0, um der Applikation mitzuteilen, dass die Daten noch nicht zurückgegeben werden können.
+- COMPLETE: In diesem Zustand werden die Daten an die Applikation zurückgegeben. Sobald die Daten zurückgegeben wurden, wechselt die State Machine zurück in den IDLE Zustand.
+
+Es zeigte sich jedoch, dass diese Art der Implementierung nicht sonderbar kombinierbar mit dem Ablauf des OBI Protokolles einhergehend war. Erste Implementierungen blockierten dabei die gesamte OBI Crossbar und blockierten damit nicht nur den Cache als auch die CPU selbst (vermutlich). 
+
+Nach Absprache mit dem Lehrpersonal überarbeiteten wir die Implementierung dahingehend um, dass die Statemaschine nicht mehr über einen internen Zustandsautomaten verfügt, 
+sondern *OBI nativ* jegliche Anfragen immer annimmt und direkt darauf reagiert. Das Interface *blockiert* nicht mehr während der Verarbeitung einer Anfrage, sondern nimmt 
+direkt die nächste Anfrage an. Hierdurch reduziert sich die Komplexität des OBI Interfaces. Gleichzeitig ist es damit Aufgabe des Masters die Anfragen in sequenzieller 
+Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der Verarbeitung einer vorherigen Anfrage beschäftigt ist, führt zu fehlerhaften Daten.
+
+
+TODO: Versuch der eigenen Implementierung, sowie deren Scheitern und umschwung auf bereits bestehendes + Abwandlung
+
+Zunächst versuchten wir, den OBI Slave eigenständig zu implementieren. Vorwegnehmend war diese Weg zur Implementierung nicht erfolgreich. Dennoch soll hier
+der Weg zur erfolgreichen Implementierung beschrieben werden, um damit das generelle Konzept hinter unserer Implementierung zu verdeutlichen: 
+
+Die Risc-V CPU kommuniziert über Memory Mapping mit dem Cache. Hierfür werden die OBI Requests und Responses über die entsprechenden Signale gesendet.
+Der vom Croc bereitgestellte RISC-V Core arbeitet dabei auf einer 32-Bit Architektur, weshalb die Datenbreite eines einezelnen OBI Requests bzw. Response 
+auf 32 Bit limitiert ist. Gleichzeitig arbeitet der Cache mit einer Datenlänge, welche höher als die 32 Bit ist. Dies stellte die erste Herausforderung 
+für die Interface Implementierung dar. 
+
+Aus Sicht des OBI Protokolles, wird dieses Problem darüber gelöst, dass mehrere, hintereianderliegende Adressen für die gesamte Datenübertragung genutzt werden. 
+Es ist dann Aufgabe der Applikation die Daten entsprechend über mehrere Aufrufe an die zugehörigen Register zu schreiben (siehe hierzu das Kapitel zur C Bibliothek). 
+
+Pseudo Code hierfür würde in etwa wie folgt aussehen:
+
+```c
+void upsert_to_cache(uint32_t base_address, uint64_t data, uint32_t key) {
+    // Aufteilen der 64-Bit Daten in zwei 32-Bit Teile
+    uint32_t lower_data = (uint32_t)(data & 0xFFFFFFFF);
+    uint32_t upper_data = (uint32_t)((data >> 32) & 0xFFFFFFFF);  
+
+    write_to_obi(base_address, lower_data);
+    write_to_obi(base_address + 4, upper_data);
+    write_to_obi(base_address + 8, key);
+    write_to_obi(base_address + 12, OP_CODE_UPSERT);    
+}
+```
+
+Darauf aufbauend muss das OBI Interface Modul über einen State Machine arbeiten, um eingehende OBI Transaktionen zu verarbeiten und die entsprechenden Daten in ein 
+temporäres Register zu schreiben. Als *Go* für das Übermitteln der Daten an den Cache Controller definierten wir, dass sobald der Master den Operationscode über das 
+entsprechende Register schreibt, die Daten an den Cache Controller weitergeleitet werden. Die State Machine hatte dabei die folgenden Zustände:
+
+- IDLE: In diesem Zustand wartet die State Machine auf einen OBI Request. Sobald ein Operationscode über das entsprechende Register geschrieben wird, übermittelt das
+Interface die Daten an den Controller und wechselt in einen WAIT_FOR_CONTROLLER Zustand.
 
 - WAIT_FOR_CONTROLLER: In diesem Zustand wartet die State Machine auf eine Rückmeldung des Cache Controllers. Sobald der Controller die Daten verarbeitet hat, wechselt die State Machine zurück in den IDLE Zustand und ist bereit für die nächste Transaktion. Während dieser Phase blockiert die State Machine weitere OBI Requests und setzt `rvalid` auf 0, um der Applikation mitzuteilen, dass die Daten noch nicht zurückgegeben werden können.
 
