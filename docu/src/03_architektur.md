@@ -15,9 +15,6 @@ Die Architektur ist in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im
 
 ![Architektur](./diagramme/03_architektur_detailliert.drawio.svg)
 
-TODO: Darstellung des Prozesses zur Architektur
-
-
 ## Statemachine (Luca S)
 Zu Beginn des Projekts wurde die State Machine mit einem stark sequenziellen Ansatz entworfen, ähnlich einem Software-Ablaufplan.
 Dabei wurden komplexe Operationen wie UPSERT in viele nacheinander ablaufende Sub-States unterteilt.
@@ -31,27 +28,20 @@ Somit konnten wir die Statemachine deutlich verkleinern und auf nur einen Zyklus
 
 *Hinweis: Aus Zeitgründen wurde die DELETE Operation noch nicht auf das optimierte Konzept umgestellt und entspricht noch dem initialen, sequenziellen Ansatz.*
 
-
 ![Statemachine](./diagramme/04_statemachine.drawio.svg)
 
 ## Taktzyklus Beispiele
-
-Zur effizienten Verarbeitung der Operationen war ursprünglich geplant, im Controller auf positive und im Memory Block auf negative Taktflanken zu warten.
+Basierend auf der ursprünglichen Statemachine haben wir zur eeffizienteren Verarbeitung  geplant, im Controller auf positive und im Memory Block auf negative Taktflanken zu warten.
 Dies sollte ermöglichen, Lese- und Schreiboperationen innerhalb einer Taktperiode abzuschließen.
+Folgendes Diagramm zeigt die daraus resultierenden Taktflanken.
 
 ![taktzyklus](./diagramme/05_taktzyklus.drawio.svg)
 
-
 Um jedoch potentielle Timing-Probleme zu vermeiden wurden der Memory Block auf die positive Taktflanke umgestellt. 
-Mithilde der Python-Tests (Cocotb) konnten die tatsächlichen Taktzyklen verifiziert werden.
+Mithilde der Python-Tests (Cocotb) konnten die tatsächlichen Taktzyklen verifiziert werden. Siehe Kapitel Tests.md
 
-GET:
+![GET](./img/get_zyklus_markiert.png){ width=75% }
 
-UPSERT (empty memory):
+![UPSERT (empty memory)](./img/upsert_zyklus_markiert.png){ width=75% }
 
-DELETE: (key exists):
-
-TODO: Takt Diagramm erstellen, welches genau auf die einzelnen Phasen eingeht
-
-
-
+![DELETE (key exists)](./img/delete_zyklus_markiert.png){ width=75% }

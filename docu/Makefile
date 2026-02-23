@@ -34,7 +34,6 @@ PANDOC_FLAGS = -s --toc -N \
                --variable geometry:margin=2cm \
                --variable fontsize=11pt \
                --variable lang=de-DE \
-               --variable "header-includes:\pagenumbering{gobble}" \
                --variable "include-before:\pagenumbering{arabic}\setcounter{page}{0}"
 
 # Standard-Target
