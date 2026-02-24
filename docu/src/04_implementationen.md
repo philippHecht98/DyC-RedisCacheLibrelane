@@ -180,8 +180,9 @@ Nachfolgendes Architekturdiagramm zeigt den Aufbau des Memory Blockes und deren 
 als auch die Signale, welche für die Interaktion mit dem übergeordneten Controller definiert 
 wurden:
 
-![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
+\pagebreak
 
+![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
 
 #### Zusammenhang mit Controller
 

@@ -4,8 +4,6 @@ Philipp Hecht
 Wie bereits erwähnt wurden wie in dem gezeigtem Beispielprojektes mit Submodulen gearbeitet, was es uns ermöglichte die einzelnen Komponenten (Memory Block, Cache Controller, OBI Interface) unabhängig voneinander zu entwickeln und zu testen. In diesem Kapitel soll es darüber hinausgehend auf das Bauen der einzelnen Module sowie das 
 Ausführen der gesamten Backend Pipeline eingegangen werden. 
 
-## Librelane Pipelines
-
 Ein weiterer Vorteil der gesamten Modularisierung der Komponenten war die Möglichkeit, die einzelnen Module unabhängig voneinander zu bauen. Hierfür wurden
 in ähnlicher Weise wie vom Lehrpersonal bereitgestellt, *Makefile Targets* für das ausführen der Librelane Pipeline erstellt. Jedes Target baut ausgehend von einer
 `config.yaml` Datei die entsprechende Komponente. Auf unterster Ebene werden die jeweiligen Targets rekursiv aufgerufen: 
