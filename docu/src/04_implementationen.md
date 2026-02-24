@@ -239,11 +239,11 @@ TODO: Diagramm erstellen
 
 Der Main Controller (controller.sv) dient als Orchestrator der Operationen. Seine Hauptaufgabe besteht darin, eingehende Operationen von dem Interface entgegenzunehmen und die Ausführung an spezialisierte Sub-Controller (GET, UPSERT, DELETE) zu delegieren.
 
-Die Architektur ist hierarchisch aufgebaut. Der Main Controller implementiert eine übergeordnete State Machine, die im `IDLE`-Zustand auf Anfragen wartet. Sobald eine valide Operation erkannt wird, wechselt der Controller in den entsprechenden Zustand und aktiviert das zuständige Sub-Modul.
+Die Architektur haben wir hierarchisch aufgebaut. Der Main Controller implementiert eine übergeordnete State Machine, die im `IDLE`-Zustand auf Anfragen wartet. Sobald eine valide Operation erkannt wird, wechselt der Controller in den entsprechenden Zustand und aktiviert das zuständige Sub-Modul.
 
 **Schnittstelle zu Sub-Controllern**
 
-Um die Komplexität zu kapseln, verfügen alle Sub-Controller über ein einheitliches Interface-Konzept zur Kommunikation mit dem Main Controller:
+Um die Komplexität zu kapseln, haben wir für alle Sub-Controller ein einheitliches Interface-Konzept zur Kommunikation mit dem Main Controller entworfen:
 
 - **`en` (Enable):** Ein Signal vom Main Controller an den Sub-Controller, um dessen FSM oder Logik zu starten.
 - **`cmd` (Command/Data):** Status Signale der Sub-Controller. (Error/Done)
@@ -282,6 +282,16 @@ end
 ```
 
 ### GET (Luca P)
+
+Für das Auslesen von Werten aus dem Cache haben wir die GET-Operation implementiert. Die zugehörige FSM (`get_fsm`) wird vom Main Controller aktiviert, sobald ein Lesezugriff angefordert wird.
+
+Den Ablauf einer GET-Operation haben wir wie folgt gestaltet:
+
+1. **Schlüsselsuche:** Um Latenzen zu minimieren, haben wir uns dazu entschieden, den zu suchenden Schlüssel nicht durch den Controller oder die `get_fsm` zu leiten. Stattdessen liegt dieser direkt am Interface an und wird von dort kontinuierlich an das Speichermodul übergeben. Das Speichermodul prüft daraufhin asynchron, ob ein entsprechender Eintrag im Cache existiert.
+
+2. **Hit/Miss-Auswertung:** Das Speichermodul liefert ein `hit`-Signal an die `get_fsm` zurück. Da die Schlüssel und daraus resultierenden Werte direkt zwischen Interface und Memory Block übertragen werden muss die `get_fsm` lediglich die hit werte an den übergeordneten Controller bzw. das Interface weiterleiten. Zudem wird das `hit_valid` signal gesetzt um dem interface mitzuteilen, dass der Wert in das Kontrollregister übernommen werden kann. 
+
+3. **Abschluss:** Die `get_fsm` signalisiert dem Main Controller den Abschluss der Operation (`cmd.done = 1`), woraufhin dieser den Status und aktuellen Befehl auf die Standard Werte zurücksetzt und in den Idle Zustand wechselt.
 
 ### UPSERT (Luca S)
 
