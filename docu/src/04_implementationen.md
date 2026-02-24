@@ -179,8 +179,9 @@ Nachfolgendes Architekturdiagramm zeigt den Aufbau des Memory Blockes und deren 
 als auch die Signale, welche für die Interaktion mit dem übergeordneten Controller definiert 
 wurden:
 
-![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
+\pagebreak
 
+![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
 
 #### Zusammenhang mit Controller
 
@@ -227,7 +228,7 @@ Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des
 
 **Timing-Diagramm der Operationen:**
 
-Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. Nachfolgende Abbildungen zeigen zunächst die theoretische Planung als auch den simulierten Durchlauf der Taktzyklen: 
+Durch dieses abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. Nachfolgende Abbildungen zeigen zunächst die theoretische Planung als auch den simulierten Durchlauf der Taktzyklen: 
 
 TODO: Diagramm erstellen
 TODO: Diagramm erstellen
