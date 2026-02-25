@@ -106,8 +106,14 @@ sondern *OBI nativ* jegliche Anfragen immer annimmt und direkt darauf reagiert. 
 direkt die nächste Anfrage an. Hierdurch reduziert sich die Komplexität des OBI Interfaces. Gleichzeitig ist es damit Aufgabe des Masters die Anfragen in sequenzieller 
 Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der Verarbeitung einer vorherigen Anfrage beschäftigt ist, führt zu fehlerhaften Daten.
 
+### Aktuelle Implementierung
 
-TODO: Versuch der eigenen Implementierung, sowie deren Scheitern und umschwung auf bereits bestehendes + Abwandlung
+Die finale Architektur des OBI-Interfaces ist stark an die Implementierung des UART OBI Interfaces aus dem Croc SoC angelehnt. Sie realisiert eine direkte Register-Schnittstelle, die als Bindeglied fungiert und von zwei Seiten unabhängig aktualisiert werden kann:
 
-TODO: Darstellung in Implementierung
+- **Updates durch die CPU (OBI-Seite):** 
+  Die CPU schreibt über reguläre OBI-Requests in die Register. Das Interface decodiert die Zieladresse und aktualisiert das entsprechende 32-Bit-Wort im `DAT`-, `KEY`- oder `CTR`-Register. Dabei werden die Byte-Enable-Signale (`be`) des OBI-Protokolls respektiert, sodass auch einzelne Bytes innerhalb eines Wortes gezielt beschrieben werden können (Auch wenn dies hier nicht unbedingt nötig ist). Eine Änderung der Operation im `CTR`-Register löst dabei die eigentliche Operation im Cache-Controller aus.
+  
+- **Updates durch den Cache-Controller (Interne Seite):** 
+  Die aktuellen Werte der Register werden kontinuierlich über interne Signale `reg_read_o` (`dat`, `key`, `operation`) an den Controller ausgegeben. Der Cache-Controller meldet Ergebnisse über dedizierte interne Signale `reg_write_i` (`dat`, `busy`, `hit`, `operation`) an das Interface zurück. Jedes Feld verfügt über ein eigenes Valid-Signal (`data_valid`, `busy_valid`, `hit_valid`, `operation_valid`), welches bestimmt, ob der entsprechende Wert im Register aktualisiert werden soll. Bei einem erfolgreichen `GET`-Befehl setzt der Controller beispielsweise `data_valid` auf 1 und überschreibt das `DAT`-Register mit dem gefundenen Wert aus dem Cache. Gleichzeitig werden die Status-Bits über `hit_valid` und `busy_valid` im `CTR`-Register aktualisiert.
 
+Durch diese beidseitige Aktualisierung dient das Interface als reiner Datenspeicher. Die Synchronisation erfolgt ausschließlich über die Software, welche das `busy`-Bit auslesen muss, um festzustellen, wann der Controller seine Updates abgeschlossen hat.
