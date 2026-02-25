@@ -44,6 +44,8 @@ Nachfolgende Tablle beschreibt die für den Cache relevanten Felder des OBI Requ
 
 Eine OBI Transkation besteht dabei immer aus einem OBI Request, sowie der zugehörigen Response.
 
+TODO: Philipp rausgeschmissene Bits als Sternchen markieren
+
 
 ### OBI Response
 

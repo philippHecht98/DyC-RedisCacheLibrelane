@@ -12,7 +12,7 @@ Der *Fork* wurde verwendet um eine generelle Vorgabe für die Code Struktur zu e
 
 Zusätzlich wurden eigens geschriebene Dockerfiles sowie Makefile Targets erstellt, welche uns ermöglichen, komfortabler während der Projektphase
 zu arbeiten. Innerhalb der Dockerfile werden benötigte Bibliotheken (bspw. Verilator) installiert. Die Makefile ermöglicht es uns, rekursiv die
-einzelnen Sub-Module des Projektes () zu bauen als auch zu testen.
+einzelnen Sub-Module des Projektes zu bauen als auch zu testen.
 
 ## Pipelines
  

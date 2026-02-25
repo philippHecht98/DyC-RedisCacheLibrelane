@@ -246,8 +246,8 @@ Die Architektur haben wir hierarchisch aufgebaut. Der Main Controller implementi
 Um die Komplexität zu kapseln, haben wir für alle Sub-Controller ein einheitliches Interface-Konzept zur Kommunikation mit dem Main Controller entworfen:
 
 - **`en` (Enable):** Ein Signal vom Main Controller an den Sub-Controller, um dessen FSM oder Logik zu starten.
-- **`cmd` (Command/Data):** Status Signale der Sub-Controller. (Error/Done)
 - **`enter` (Enter):** Signalisiert den Eintritt in den Zustand des Sub-Controllers. Dient zur Initialisierung der Sub-FSM.
+- **`cmd` (Command/Data):** Status Signale der Sub-Controller. (Error/Done)
 
 Dies ermöglicht es dem Main Controller, generisch auf das Ende einer Operation zu warten, ohne die internen Details der Operation kennen zu müssen.
 
@@ -329,8 +329,6 @@ always_comb begin
 
 ### DELETE (Philipp)
 
-**Beschreibung der State Machine für DELETE Sub-states:**
-
 Die DELETE FSM verwaltet den Löschprozess durch drei Zustände:
 
 1. **DEL_ST_START**: In diesem Zustand wird keine Operation ausgeführt; das Modul wartet auf die Aktivierung durch den Controller. Sobald das Modul aktiviert wird (dediziertes Steuersignal), springt die State Machine in den nächsten Zustand, um die Löschoperation einzuleiten. 
@@ -349,4 +347,4 @@ Die zuvor beschriebene `always_comb`-Logik des Memory Blockes ermöglicht es dir
 ## Obi interface 
 
 Als übergeordneten Block wurde für die Anbindung des Caches eine OBI (Open Bus Interface) Schnittstelle implementiert. Diese 
-ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](./06_obi.md) beschrieben.
+ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](#obi) beschrieben.

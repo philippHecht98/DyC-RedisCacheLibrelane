@@ -1,8 +1,12 @@
 # Architektur
 
-## Alles richtung Architektur (?)
+Nachfolgendes Diagramm gibt einen Überblick über die Gesamtarchitektur unseres Redis Caches und zeigt die Verbindungen zwischen den einzelnen Modulen, auf die in den folgenden Abschnitten näher eingegangen wird.
 
-Die Architektur ist in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im Kapitel CROC beschrieben. Die USER_DOMAIN ist modular aufgebaut und in drei Hauptkomponenten unterteilt:
+![Architektur](./diagramme/03_architektur_detailliert.drawio.svg)
+
+## Alles richtung Architektur
+
+Die Architektur ist in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im Kapitel [CROC](#croc) beschrieben. Die USER_DOMAIN ist modular aufgebaut und in drei Hauptkomponenten unterteilt:
 
 1.  **OBI Interface (`obi_interface`)**: 
     Dieses Modul fungiert als Slave am OBI-Bus. Es nimmt Anfragen entgegen und verwaltet die internen Register für Key, Value und Control-Signale. Es entkoppelt das Bus-Protokoll von der internen Logik.
@@ -13,9 +17,7 @@ Die Architektur ist in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im
 3.  **Memory Block (`memory_block`)**: 
     Enthält das eigentliche Speicher-Array. Die Daten (Key/Value) liegen direkt aus den Interface-Registern am Speicher an.
 
-![Architektur](./diagramme/03_architektur_detailliert.drawio.svg)
-
-## Statemachine (Luca S)
+## Statemachine
 Zu Beginn des Projekts wurde die State Machine mit einem stark sequenziellen Ansatz entworfen, ähnlich einem Software-Ablaufplan.
 Dabei wurden komplexe Operationen wie UPSERT in viele nacheinander ablaufende Sub-States unterteilt.
 
@@ -38,10 +40,10 @@ Folgendes Diagramm zeigt die daraus resultierenden Taktflanken.
 ![taktzyklus](./diagramme/05_taktzyklus.drawio.svg)
 
 Um jedoch potentielle Timing-Probleme zu vermeiden wurden der Memory Block auf die positive Taktflanke umgestellt. 
-Mithilde der Python-Tests (Cocotb) konnten die tatsächlichen Taktzyklen verifiziert werden. Siehe Kapitel Tests.md
+Mithilde der Python-Tests (Cocotb) konnten die tatsächlichen Taktzyklen verifiziert werden. Siehe Kapitel [Tests](#tests)
 
-![GET](./img/get_zyklus_markiert.png){ width=75% }
+![GET](./img/get_zyklus_markiert.png)
 
-![UPSERT (empty memory)](./img/upsert_zyklus_markiert.png){ width=75% }
+![UPSERT (empty memory)](./img/upsert_zyklus_markiert.png)
 
-![DELETE (key exists)](./img/delete_zyklus_markiert.png){ width=75% }
+![DELETE (key exists)](./img/delete_zyklus_markiert.png)
