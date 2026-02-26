@@ -1,1 +1,0 @@
-# Vivado Setup - Mac Anleitung (Luca P) Optional!!!!

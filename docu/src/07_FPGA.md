@@ -12,6 +12,3 @@ Im Gegensatz zu herkömmlichen Cache-Implementierungen, die häufig auf dedizier
 Nach der erfolgreichen Synthese und dem Routing generieren wir den Bitstream. Dieser wird anschließend über einen USB-Stick direkt auf das Genesys 2 Board geladen, um das FPGA zu konfigurieren. 
 
 Sobald das FPGA mit dem CROC SoC und unserem integrierten Redis Cache konfiguriert ist, laden wir den C-Code für die Testprogramme über OpenOCD und GDB auf den RISC-V Prozessor. Ein großer Vorteil des Genesys 2 Boards ist hierbei, dass das SoC direkt den integrierten JTAG-USB-Port des Boards nutzt. Dadurch benötigen wir keinen zusätzlichen Raspberry Pi oder externe JTAG-Adapter für das Flashen und Debuggen. Über die UART-Schnittstelle des Genesys 2 Boards können wir dann die Ausführung der Programme überwachen und die Ergebnisse auf einem Host-PC auswerten.
-
-## OLED Integration
-TODO: Beschreibung der OLED Integration für Statusanzeigen.
