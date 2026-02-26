@@ -1,6 +1,7 @@
 # Implementationen
 
-## Memory (Philipp)
+## Memory
+Philipp Hecht
 
 Wie bereits zuvor beschrieben, haben wir uns für die Implementierung eines Key-Value-Stores entschieden, der 
 im Wesentlichen auf einem einfachen Speicherblock basiert. Zunächst wurde für den Speicherblock definiert,
@@ -230,12 +231,12 @@ Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des
 Durch dieses sorgfältig abgestimmte Timing zwischen Controller-Zustandsübergängen (positive Flanken) und Memory Block-Schreibvorgängen (negative Flanken) spart sich der Cache komplexere Handshakes als auch Wartezyklen. Nachfolgende Abbildungen zeigen zunächst die theoretische Planung als auch den simulierten Durchlauf der Taktzyklen: 
 
 TODO: Diagramm erstellen
-TODO: Diagramm erstellen
 
 
 ## Controller
 
-### Main Controller (Luca S, Luca P)
+### Main Controller
+Luca Schmid
 
 Der Main Controller (controller.sv) dient als Orchestrator der Operationen. Seine Hauptaufgabe besteht darin, eingehende Operationen von dem Interface entgegenzunehmen und die Ausführung an spezialisierte Sub-Controller (GET, UPSERT, DELETE) zu delegieren.
 
@@ -281,7 +282,8 @@ always_comb begin
 end
 ```
 
-### GET (Luca P)
+### GET
+Luca Pinnekamp
 
 Für das Auslesen von Werten aus dem Cache haben wir die GET-Operation implementiert. Die zugehörige FSM (`get_fsm`) wird vom Main Controller aktiviert, sobald ein Lesezugriff angefordert wird.
 
@@ -293,11 +295,12 @@ Den Ablauf einer GET-Operation haben wir wie folgt gestaltet:
 
 3. **Abschluss:** Die `get_fsm` signalisiert dem Main Controller den Abschluss der Operation (`cmd.done = 1`), woraufhin dieser den Status und aktuellen Befehl auf die Standard Werte zurücksetzt und in den Idle Zustand wechselt.
 
-### UPSERT (Luca S)
+### UPSERT
+Luca Schmid
 
 Der UPSERT-Controller ("Update or Insert") ist für das Schreiben von Daten in den Cache verantwortlich. Er wurde so implementiert, dass er unabhängig vom Basistemplate agiert und die spezifische Logik für das Hinzufügen oder Aktualisieren von Key-Value-Paaren kapselt.
 
-Die Key-Value Werte liegen direkt vom OBI-Interface am Memory-Block an. (Siehe Kapitel Architektur) 
+Die Key-Value Werte liegen direkt vom OBI-Interface am Memory-Block an. (Siehe Kapitel [Architektur](#architektur)) 
 Somit steuert die Implementierung nur noch die Signale zur Verarbeitung dieser Werte im Memory-Block.
 
 Wenn der empfangene Key-Wert bereits im Memory vorhanden ist, dann gibt der Memory-Block dem UPSERT-Controller ein positives "hit" signal und dessen "index" zurück. Wenn der Key-Wert nicht vorhanden ist liegt ein negatives "hit" signal an.
@@ -327,7 +330,8 @@ always_comb begin
     end
 ```
 
-### DELETE (Philipp)
+### DELETE
+Philipp Hecht
 
 Die DELETE FSM verwaltet den Löschprozess durch drei Zustände:
 
@@ -345,6 +349,7 @@ Die zuvor beschriebene `always_comb`-Logik des Memory Blockes ermöglicht es dir
 
 
 ## Obi interface 
+Philipp Hecht
 
 Als übergeordneten Block wurde für die Anbindung des Caches eine OBI (Open Bus Interface) Schnittstelle implementiert. Diese 
 ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](#obi) beschrieben.

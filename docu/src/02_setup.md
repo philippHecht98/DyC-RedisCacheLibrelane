@@ -1,4 +1,5 @@
 # Projekt Setup
+Gemeinsam
 
 ## Repo Struktur
 
@@ -8,7 +9,12 @@ Der *Fork* wurde verwendet um eine generelle Vorgabe für die Code Struktur zu e
 
 - .github/Workflows
 - docs
-- src TODO: Ausweiten auf die einzelnen Module
+- riscv
+- src 
+    - controller
+    - interface
+    - memory
+    - redis_cache
 
 Zusätzlich wurden eigens geschriebene Dockerfiles sowie Makefile Targets erstellt, welche uns ermöglichen, komfortabler während der Projektphase
 zu arbeiten. Innerhalb der Dockerfile werden benötigte Bibliotheken (bspw. Verilator) installiert. Die Makefile ermöglicht es uns, rekursiv die

@@ -1,9 +1,10 @@
 \newpage
 # Einleitung / Idee
+Gemeinsam
 
-[Link zur custom Hardware]() \
-[Link zu Risc-V Tapeout]()
-
+TODO: [Link zur custom Hardware]() \
+TODO: [Link zu Risc-V Tapeout]()
+ 
 Die ursprüngliche Idee dieses Projekts ist der Entwurf und die Implementierung eines kompakten Key-Value-Stores, inspiriert von Redis, auf RTL-Ebene (für FPGAs oder ASICs).
 
 Grund für diese Entscheidung war 

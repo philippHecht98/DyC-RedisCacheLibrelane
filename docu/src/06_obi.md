@@ -1,6 +1,7 @@
 # OBI
 
 ## Einleitung und Motivation
+Philipp Hecht
 
 Die ursprüngliche Idee war es, den Cache über *Custom-Commands* innerhalb einer RISC-V CPU anzusteuern. Hierrüber wäre es somit möglich gewesen, 
 die Cache Operationen direkt als Assembler Instruktionen zu implementieren. Auf Empfehlung des Lehrpersonals, wurde die Entscheidung getroffen, die 
@@ -14,7 +15,7 @@ die gleichen Signale wie zuvor, was die Komplexität der Implementierung reduzie
 Testen und Debugging des OBI Slaves. 
 
 ## OBI Protokoll
-
+Luca Schmid
 
 ### Register
 
@@ -61,6 +62,8 @@ Nachfolgende Tablle beschreibt die für den Cache relevanten Felder des OBI Resp
 | rvalid            | 1             | Response Valid: Wird 1, wenn die zurückgegebenen Daten in r.rdata gültig sind. |
 
 ## Implementierung des OBI Slaves
+Philipp Hecht
+
 
 Zunächst versuchten wir, den OBI Slave eigenständig zu implementieren. Vorwegnehmend war diese Weg zur Implementierung nicht erfolgreich. Dennoch soll hier
 der Weg zur erfolgreichen Implementierung beschrieben werden, um damit das generelle Konzept hinter unserer Implementierung zu verdeutlichen: 
@@ -71,7 +74,7 @@ auf 32 Bit limitiert ist. Gleichzeitig arbeitet der Cache mit einer Datenlänge,
 für die Interface Implementierung dar. 
 
 Aus Sicht des OBI Protokolles, wird dieses Problem darüber gelöst, dass mehrere, hintereianderliegende Adressen für die gesamte Datenübertragung genutzt werden. 
-Es ist dann Aufgabe der Applikation die Daten entsprechend über mehrere Aufrufe an die zugehörigen Register zu schreiben (siehe hierzu das Kapitel zur C Bibliothek). 
+Es ist dann Aufgabe der Applikation die Daten entsprechend über mehrere Aufrufe an die zugehörigen Register zu schreiben (siehe hierzu das Kapitel [C Lib](#c-lib)). 
 
 Pseudo Code hierfür würde in etwa wie folgt aussehen:
 
@@ -107,6 +110,7 @@ direkt die nächste Anfrage an. Hierdurch reduziert sich die Komplexität des OB
 Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der Verarbeitung einer vorherigen Anfrage beschäftigt ist, führt zu fehlerhaften Daten.
 
 ### Aktuelle Implementierung
+Luca Pinnekamp
 
 Die finale Architektur des OBI-Interfaces ist stark an die Implementierung des UART OBI Interfaces aus dem Croc SoC angelehnt. Sie realisiert eine direkte Register-Schnittstelle, die als Bindeglied fungiert und von zwei Seiten unabhängig aktualisiert werden kann:
 

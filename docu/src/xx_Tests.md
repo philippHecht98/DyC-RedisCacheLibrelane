@@ -1,4 +1,5 @@
 # Tests
+Luca Schmid
 
 ## Allgemeines Testkonzept
 
@@ -82,6 +83,6 @@ In der Zeile `operation_in` ist zu sehen, welche Operation vom Controller empfan
 Im darauffolgenden Takt wechselt der Controller in den entsprechenden Zustand.
 Nach dem einfügen des Keys in den Speicher wechselt der Controller zurück in den IDLE Status.
 Gleichzeitig sendet das OBI-Interface die Response. 
-Der Wert `3` der OBI-Response bedeutet, dass das GNT und rvalid Bit gesetzt sind (Siehe Kapitel OBI) und die Operation erfolgreich durchgeführt wurde. 
+Der Wert `3` der OBI-Response bedeutet, dass das GNT und rvalid Bit gesetzt sind (Siehe Kapitel [OBI](#obi)) und die Operation erfolgreich durchgeführt wurde. 
 
 ![UPSERT (empty memory)](./img/upsert_zyklus_markiert.png)
