@@ -1,7 +1,8 @@
 # Implementationen
 
 ## Memory
-Philipp Hecht
+
+Ausarbeitung Philipp Hecht
 
 Wie bereits zuvor beschrieben, haben wir uns für die Implementierung eines Key-Value-Stores entschieden, der 
 im Wesentlichen auf einem einfachen Speicherblock basiert. Zunächst wurde für den Speicherblock definiert,
@@ -276,7 +277,8 @@ end
 ```
 
 ### GET
-Luca Pinnekamp
+
+Ausarbeitung Luca Pinnekamp
 
 Für das Auslesen von Werten aus dem Cache haben wir die GET-Operation implementiert. Die zugehörige FSM (`get_fsm`) wird vom Main Controller aktiviert, sobald ein Lesezugriff angefordert wird.
 
@@ -289,7 +291,8 @@ Den Ablauf einer GET-Operation haben wir wie folgt gestaltet:
 3. **Abschluss:** Die `get_fsm` signalisiert dem Main Controller den Abschluss der Operation (`cmd.done = 1`), woraufhin dieser den Status und aktuellen Befehl auf die Standard Werte zurücksetzt und in den Idle Zustand wechselt.
 
 ### UPSERT
-Luca Schmid
+
+Ausarbeitung Luca Schmied
 
 Der UPSERT-Controller ("Update or Insert") ist für das Schreiben von Daten in den Cache verantwortlich. Er wurde so implementiert, dass er unabhängig vom Basistemplate agiert und die spezifische Logik für das Hinzufügen oder Aktualisieren von Key-Value-Paaren kapselt.
 
@@ -324,7 +327,8 @@ always_comb begin
 ```
 
 ### DELETE
-Philipp Hecht
+
+Ausarbeitung Philipp Hecht
 
 **Beschreibung der State Machine für DELETE Sub-states:**
 

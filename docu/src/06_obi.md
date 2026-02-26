@@ -1,5 +1,7 @@
 # OBI
 
+Ausarbeitung Philipp Hecht
+
 ## Einleitung und Motivation
 Philipp Hecht
 
@@ -116,7 +118,7 @@ der Weg zur erfolgreichen Implementierung beschrieben werden, um damit das gener
 
 Die Risc-V CPU kommuniziert über Memory Mapping mit dem Cache. Hierfür werden die OBI Requests und Responses über die entsprechenden Signale gesendet.
 Der vom Croc bereitgestellte RISC-V Core arbeitet dabei auf einer 32-Bit Architektur, weshalb die Datenbreite eines einezelnen OBI Requests bzw. Response 
-auf 32 Bit limitiert ist. Gleichzeitig arbeitet der Cache mit einer Datenlänge, welche höher als die 32 Bit ist. Dies stellte die erste Herausforderung 
+auf 32 Bit limitiert ist (gilt für wdata, addr, rdata). Gleichzeitig arbeitet der Cache mit einer Datenlänge, welche höher als die 32 Bit ist. Dies stellte die erste Herausforderung 
 für die Interface Implementierung dar. 
 
 Aus Sicht des OBI Protokolles, wird dieses Problem darüber gelöst, dass mehrere, hintereianderliegende Adressen für die gesamte Datenübertragung genutzt werden. 
@@ -157,6 +159,8 @@ Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der
 
 ### Aktuelle Implementierung
 Luca Pinnekamp
+
+Ausarbeitung Luca Pinnekamp
 
 Die finale Architektur des OBI-Interfaces ist stark an die Implementierung des UART OBI Interfaces aus dem Croc SoC angelehnt. Sie realisiert eine direkte Register-Schnittstelle, die als Bindeglied fungiert und von zwei Seiten unabhängig aktualisiert werden kann:
 

@@ -4,9 +4,7 @@ Nachfolgendes Diagramm gibt einen Überblick über die Gesamtarchitektur unseres
 
 ![Architektur](./diagramme/03_architektur_detailliert.drawio.svg)
 
-## User Domain Architektur
-
-Die Architektur ist in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im Kapitel [CROC](#croc) beschrieben. Die USER_DOMAIN ist modular aufgebaut und in drei Hauptkomponenten unterteilt:
+Dabei ist unsere Cache Hardware in die CROC Architektur eingebettet. Die CROC_DOMAIN wird im Kapitel [CROC](#croc) beschrieben. Die USER_DOMAIN ist modular aufgebaut und in drei Hauptkomponenten unterteilt:
 
 1.  **OBI Interface (`obi_interface`)**: 
     Dieses Modul fungiert als Slave am OBI-Bus. Es nimmt Anfragen entgegen und verwaltet die internen Register für Key, Value und Control-Signale. Es entkoppelt das Bus-Protokoll von der internen Logik.
@@ -34,7 +32,7 @@ Somit konnten wir die Statemachine deutlich verkleinern und auf nur einen Zyklus
 
 ## Taktzyklus Beispiele
 
-Zur Optimierung der Verarbeitungsgeschwindigkeit haben wir uns dazu enschieden im memory_array die Werte bei fallenden Taktfalnken in die Register zu schreiben.
+Basierend auf der ursprünglichen Statemachine haben wir zur effizienteren Verarbeitung  geplant, im Controller auf positive und im Memory Block auf negative Taktflanken zu warten.
 Dies sollte ermöglichen, Lese- und Schreiboperationen innerhalb einer Taktperiode abzuschließen.
 Folgendes Diagramm zeigt die daraus resultierenden Taktflanken.
 

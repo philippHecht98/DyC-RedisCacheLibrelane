@@ -16,8 +16,7 @@ CHAPTERS = $(SOURCE_DIR)/00_title.md \
            $(SOURCE_DIR)/09_backendPipeline.md \
            $(SOURCE_DIR)/xx_Tests.md \
            $(SOURCE_DIR)/10_learnings.md \
-           $(SOURCE_DIR)/11_ausblick.md \
-           $(SOURCE_DIR)/12_vivado_mac.md
+           $(SOURCE_DIR)/11_ausblick.md 
 
 # Pandoc Optionen
 # --toc: Inhaltsverzeichnis

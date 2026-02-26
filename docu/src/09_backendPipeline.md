@@ -1,5 +1,6 @@
 # Backend
-Philipp Hecht
+
+Ausarbeitung Philipp Hecht
 
 Wie bereits erwähnt wurden wie in dem gezeigtem Beispielprojektes mit Submodulen gearbeitet, was es uns ermöglichte die einzelnen Komponenten (Memory Block, Cache Controller, OBI Interface) unabhängig voneinander zu entwickeln und zu testen. In diesem Kapitel soll es darüber hinausgehend auf das Bauen der einzelnen Module sowie das 
 Ausführen der gesamten Backend Pipeline eingegangen werden. 
