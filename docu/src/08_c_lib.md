@@ -1,4 +1,5 @@
 # C Lib
+Luca Pinnekamp
 
 Um die Interaktion mit dem Hardware-Redis-Cache aus einer Software-Umgebung heraus zu vereinfachen, haben wir eine dedizierte C-Bibliothek entwickelt. Diese Bibliothek abstrahiert die komplexen Hardware-Zugriffe über das OBI-Interface und stellt dem Entwickler eine einfache und intuitive API zur Verfügung.
 

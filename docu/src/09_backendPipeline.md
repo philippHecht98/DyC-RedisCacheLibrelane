@@ -1,4 +1,5 @@
-# Backend (Philipp)
+# Backend
+Philipp Hecht
 
 Wie bereits erwähnt wurden wie in dem gezeigtem Beispielprojektes mit Submodulen gearbeitet, was es uns ermöglichte die einzelnen Komponenten (Memory Block, Cache Controller, OBI Interface) unabhängig voneinander zu entwickeln und zu testen. In diesem Kapitel soll es darüber hinausgehend auf das Bauen der einzelnen Module sowie das 
 Ausführen der gesamten Backend Pipeline eingegangen werden. 
@@ -11,7 +12,7 @@ in ähnlicher Weise wie vom Lehrpersonal bereitgestellt, *Makefile Targets* für
 
 Darüber hinaus wurde für das Tapeout des gesamten Systemes (inklusive der Croc Umgebung) auf Empfehlung des Lehrpersonals 
 ein weiteres Code Repository erstellt. Diese beinhaltet die gesamte Croc Umgebung, die Anbindung an unser System sowie 
-unsere eigene Implementierung (vgl. Kapitel Croc). 
+unsere eigene Implementierung (vgl. Kapitel [CROC](#croc)). 
 
 Das Croc Repository arbeitet zum Tapeout ihrer Implementierung mit [Bender](https://github.com/pulp-platform/bender). Zur Transition zur unserer eigenen Tapeout Pipeline 
 wurde zunächst versucht, über die Bender Pipeline eine vollumfängliche Liste aller notwendigen Verilog Dateien zu generieren. Die Idee war, diese in einer Librelane

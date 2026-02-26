@@ -1,4 +1,5 @@
 # FPGA
+Luca Pinnekamp
 
 Die Implementierung und Synthese unseres Redis Caches auf einem FPGA (Field Programmable Gate Array) ist ein zentraler Bestandteil dieses Projekts, um die Hardware-Beschleunigung in der Praxis zu evaluieren. Als Zielplattform haben wir uns für das **Digilent Genesys 2 Board** entschieden, da das CROC SoC bereits erfolgreich auf diesem Board getestet wurde und wir somit auf eine funktionierende Basis aufbauen konnten.
 
