@@ -43,9 +43,9 @@ Nachfolgende Tablle beschreibt die für den Cache relevanten Felder des OBI Requ
 | aid               | 1             | Address ID: Eine ID für die Transaktion |
 | req               | 1             | Request: Das Handshake-Signal, welches der Master zum Start einer Transaktion sendet |
 
-Eine OBI Transkation besteht dabei immer aus einem OBI Request, sowie der zugehörigen Response.
+*für die Dokumenatiion nicht relevanten felder wurden hier ausgelassen
 
-TODO: Philipp rausgeschmissene Bits als Sternchen markieren
+Eine OBI Transkation besteht dabei immer aus einem OBI Request, sowie der zugehörigen Response.
 
 
 ### OBI Response
@@ -60,6 +60,8 @@ Nachfolgende Tablle beschreibt die für den Cache relevanten Felder des OBI Resp
 | err               | 1             | Error: Einfaches Flag Signal, welches der Applikation andeutet, dass die Ausführung nicht erfolgreich war |
 | gnt               | 1             | Grant: Handshake-Signal mit dem der Slave bestätigt, dass er die Anfrage verarbeitet hat |
 | rvalid            | 1             | Response Valid: Wird 1, wenn die zurückgegebenen Daten in r.rdata gültig sind. |
+
+*für die Dokumenatiion nicht relevanten felder wurden hier ausgelassen
 
 ## Implementierung des OBI Slaves
 Philipp Hecht
@@ -108,9 +110,6 @@ Nach Absprache mit dem Lehrpersonal überarbeiteten wir die Implementierung dahi
 sondern *OBI nativ* jegliche Anfragen immer annimmt und direkt darauf reagiert. Das Interface *blockiert* nicht mehr während der Verarbeitung einer Anfrage, sondern nimmt 
 direkt die nächste Anfrage an. Hierdurch reduziert sich die Komplexität des OBI Interfaces. Gleichzeitig ist es damit Aufgabe des Masters die Anfragen in sequenzieller 
 Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der Verarbeitung einer vorherigen Anfrage beschäftigt ist, führt zu fehlerhaften Daten.
-
-
-TODO: Versuch der eigenen Implementierung, sowie deren Scheitern und umschwung auf bereits bestehendes + Abwandlung
 
 Zunächst versuchten wir, den OBI Slave eigenständig zu implementieren. Vorwegnehmend war diese Weg zur Implementierung nicht erfolgreich. Dennoch soll hier
 der Weg zur erfolgreichen Implementierung beschrieben werden, um damit das generelle Konzept hinter unserer Implementierung zu verdeutlichen: 

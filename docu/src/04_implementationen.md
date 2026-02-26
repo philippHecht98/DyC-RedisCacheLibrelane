@@ -226,7 +226,6 @@ Zelle gespeichert bzw. gelöscht.
 1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. 
 Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
 
-
 ## Controller
 
 ### Main Controller
