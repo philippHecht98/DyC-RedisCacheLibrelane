@@ -1,5 +1,4 @@
 # CROC
-Luca Pinnekamp
 
 Ausarbeitung Luca Pinnekamp
 
@@ -7,7 +6,7 @@ Das CROC (Custom RISC-V Open-source Core) System-on-Chip (SoC) dient als Zielpla
 
 ## CROC Architektur
 
-![CROC SoC Architektur](../img/croc_arch.svg)
+![CROC SoC Architektur](../img/croc_arch.svg){ width=75% }
 
 Die Architektur des CROC SoCs ist hierarchisch in verschiedene Domänen unterteilt, um eine klare Trennung zwischen dem Kernsystem und benutzerdefinierten Erweiterungen zu gewährleisten:
 

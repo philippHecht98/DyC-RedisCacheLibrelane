@@ -1,7 +1,6 @@
 # Tests
-Luca Schmid
 
-Ausarbeitung Luca Schmied
+Ausarbeitung Luca Schmid
 
 ## Allgemeines Testkonzept
 
@@ -10,7 +9,7 @@ Um die korrekte Funktionalität der Module sicherzustellen, haben wir Frontend-T
 1.  **Unit-Tests:** Überprüfung einzelner Module (z.B. `memory_block`, `dynamic_register_array`)
 2.  **End-to-End Tests:** Überprüfung des Gesamtsystems (`redis_cache`) über das OBI-Interface
 
-Als Simulatoren kommen **Verilator** und **Icarus Verilog** zum Einsatz. Bei den Unit-Tests auf Modul-Ebene ohne komplexe SystemVerilog-Structs konnte Icarus Verilog verwndet werden. Für den End-to-End Test auf der Top-Ebene wurde aufgrund der integrierten OBI-Packages und Structs der Simulator Verilator benötigt.
+Als Simulatoren kommen **Verilator** und **Icarus Verilog** zum Einsatz. Bei den Unit-Tests auf Modul-Ebene ohne komplexe SystemVerilog-Structs konnte Icarus Verilog verwendet werden. Für den End-to-End Test auf der Top-Ebene wurde aufgrund der integrierten OBI-Packages und Structs der Simulator Verilator benötigt.
 
 ## Unit-Tests
 
@@ -24,7 +23,7 @@ Hierbei werden Szenarien abgedeckt wie:
 
 ## End-to-End Test (`test_redis_cache.py`)
 
-Der zentrale Bestandteil der Verifikation ist der Integrationstest `test_redis_cache.py`. Dieser Test instanziiert das Top-Level-Modul `redis_cache`, in dem alle Sub-Komponenten (`obi_interface`, `controller`, `memory_block`) miteinander verbunden sind.
+Der zentrale Bestandteil der Verifikation ist der Integrationstest `test_redis_cache.py`, welcher das Top-Level-Modul `redis_cache` instanziiert (in dem alle Sub-Komponenten (`obi_interface`, `controller`, `memory_block`) miteinander verbunden sind).
 
 ### Funktionsweise
 

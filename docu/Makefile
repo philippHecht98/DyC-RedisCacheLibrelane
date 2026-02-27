@@ -15,8 +15,7 @@ CHAPTERS = $(SOURCE_DIR)/00_title.md \
            $(SOURCE_DIR)/08_c_lib.md \
            $(SOURCE_DIR)/09_backendPipeline.md \
            $(SOURCE_DIR)/xx_Tests.md \
-           $(SOURCE_DIR)/10_learnings.md \
-           $(SOURCE_DIR)/11_ausblick.md 
+           $(SOURCE_DIR)/10_learnings.md
 
 # Pandoc Optionen
 # --toc: Inhaltsverzeichnis
@@ -30,8 +29,8 @@ CHAPTERS = $(SOURCE_DIR)/00_title.md \
 
 PANDOC_FLAGS = -s --toc -N \
                --resource-path=.:$(SOURCE_DIR):$(DIAGRAM_DIR) \
-               --variable geometry:margin=2cm \
-               --variable fontsize=11pt \
+               --variable geometry:margin=1.5cm \
+               --variable fontsize=10pt \
                --variable lang=de-DE \
                --variable "include-before:\pagenumbering{arabic}\setcounter{page}{0}"
 

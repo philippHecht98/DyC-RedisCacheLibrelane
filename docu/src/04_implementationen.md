@@ -20,12 +20,6 @@ des Speicherns von Schlüssel-Wert Paaren bereitstellt. Hierauf setzend wurde ei
 
 Diese Komponente bildet die unterste Hierarchie-Ebene der Memory-Funktionalität und stellt einen einzelnen, konfigurierbaren Registerblock dar. Die Registerbreite wird durch den Parameter `LENGTH` zur Compile-Zeit definiert, wodurch eine flexible Anpassung an verschiedene Datenbreiten ermöglicht wird. Der Registerblock ist nach außen hin vollständig addressierbar durch standardisierte Steuersignale für Lese- und Schreibvorgänge.
 
-**Funktionale Merkmale:**
-- **Parametrische Registerlänge**: Die Breite des Registerblocks wird über `LENGTH` konfiguriert
-- **Synchrone Schreibvorgänge**: Daten werden auf der fallenden Clock-Flanke übernommen
-- **Asynchroner Reset**: Der Register wird auf 0 zurückgesetzt, wenn `rst_n` Low wird
-- **Parallele Ein- und Ausgänge**: Simultaner Zugriff auf alle Bits des Registerblocks
-
 **Implementierung:**
 
 ```systemverilog
@@ -100,7 +94,7 @@ durch das Vorhandensein eines Schlüssels (key_out != 0) definiert wurde. Gleich
 
 ### Memory Block
 
-Der Memory Block ist die übergeordnete Kontrollschicht der einzelnen Speicherzellen. Gleichzeigit übernimmt dieser
+Der Memory Block ist die übergeordnete Kontrollschicht der einzelnen Speicherzellen. Gleichzeitig übernimmt dieser
 Block die Verwaltung von Befehlen des übergeordneten Controllers, welcher im Nachfolgenden [Kapitel](#controller) 
 beschrieben wird. 
 
@@ -181,56 +175,13 @@ Nachfolgendes Architekturdiagramm zeigt den Aufbau des Memory Blockes und deren 
 als auch die Signale, welche für die Interaktion mit dem übergeordneten Controller definiert 
 wurden:
 
-\pagebreak
-
-![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg)
-
-#### Zusammenhang mit Controller
-
-Der Memory Block wird zentral vom übergeordneten Controller orchestriert, welcher drei unterschiedliche Operationen 
-(GET, UPSERT, DELETE) mittels Finite State Machines (FSMs) durchführt. Dabei laufen die Interaktionen zwischen 
-Controller und Memory Block über klar definierte Steuersignale.
-
-Im Nachfoglendem wird auf die einzelnen Operationen eingegangen. Dabei wird auf Taktzyklenebene beschreiben,
-wie die einzelnen Signale den Memory Block operieren und der Datenfluss dargestellt.
-
-
-**GET-Operation:**
-
-1. **Schritt 1 - Positive Flanke**: Der Controller wechselt intern in einen *GET*-Zustand (siehe nachfolgendes 
-Kapitel). Auf den Schlüssel-Input Kabeln des Memory Blocks wird der gesuchte Schlüssel für den Memory Block 
-bereitgestellt. Durch die `always_comb` Logik des Memory Blockes wird dadurch sofort eine Suche nach diesem 
-Schlüssel in allen Zellen durchgeführt (siehe Kombinationslogik oben). 
-
-2. **Schritt 2 - Positive Flanke**: Sollte dabei der Schlüssel in den Zellen gefunden werden, wird an die
-Ausgangssignale des Memory Blockes die Daten, ein Hit-Signal sowie der Index der gefundenen 
-Zelle ausgegeben. Daraufaufsetzend, kann der Controller in der nächsten steigenden Flanke mit einem 
-Ergebnis vom Memory Block rechnen. 
-
-Falls dieser Schlüssel nicht gefunden wird, wird das Hit-Signal nicht gesetzt, wodurch der Controller in der 
-nächsten steigenden Flanke erkennen kann, dass kein Treffer vorliegt. Dies verwendet der Controller anschließend für die 
-Kalkulation ob der Upsert ein Update eines Eintrages oder das Einfügen eines neuen Eintrags bedeutet.
-
-
-**UPSERT / DELETE -Operation:**
-
-1. **Schritt 1 - Positive Flanke**: Der Controller wechselt zu einem *UPSERT*-Zustand. Auf den Schlüssel und Daten Kabeln
-des Memory Blockes werden die entsprechenden Werte bereitgestellt. Zusätzlich wird das Steuersignal für das Einfügen bzw.
-des Löschen als auch der Index für relevante Zelle gesetzt. 
-
-2. **Schritt 2 - Negative Flanke**: Zur fallenden Flanke liegen die Schüssel und Daten Werte bereits an den Eingängen aller Zellen.
-Durch die Logik des Memory Blockes wird abhängig vom gesetzten Indexes und des Schreibsignals allerdings nur an der zum Index
-zugehörigen Zelle das *Schreib-Flag* angelegt. Dadurch wird nur diese Zelle die Daten in ihren Registern speichern. Im Falle einer
-Löschoperation, werden an die Schlüssel und Dateneingägne der Zellen *0* angelegt. Mit der fallenden Flanke werden die Daten in der 
-Zelle gespeichert bzw. gelöscht.
-
-1. **Schritt 3 - Positive Flanke**: Der Controller kann davon ausgehen, dass die angelegten Werte in der Zelle gespeichert wurden. 
-Zusätzlich wird im Falle einer Upsert-Operation über die Combinationslogik des Memory Blockes sofort ein Hit-Signal zurückgegeben. 
+![Memory Block Architektur](./diagramme/Memory Block Architektur.drawio.svg){ width=75% }
 
 ## Controller
 
 ### Main Controller
-Luca Schmid
+
+Ausarbeitung Luca Schmid
 
 Der Main Controller (controller.sv) dient als Orchestrator der Operationen. Seine Hauptaufgabe besteht darin, eingehende Operationen von dem Interface entgegenzunehmen und die Ausführung an spezialisierte Sub-Controller (GET, UPSERT, DELETE) zu delegieren.
 
@@ -246,6 +197,7 @@ Um die Komplexität zu kapseln, haben wir für alle Sub-Controller ein einheitli
 
 Dies ermöglicht es dem Main Controller, generisch auf das Ende einer Operation zu warten, ohne die internen Details der Operation kennen zu müssen.
 
+\newpage
 ```systemverilog
 // Pseudo-Code Beispiel für die State-Wechsel vom Main Controller zu den Sub-Controllern
 always_comb begin
@@ -292,7 +244,7 @@ Den Ablauf einer GET-Operation haben wir wie folgt gestaltet:
 
 ### UPSERT
 
-Ausarbeitung Luca Schmied
+Ausarbeitung Luca Schmid
 
 Der UPSERT-Controller ("Update or Insert") ist für das Schreiben von Daten in den Cache verantwortlich. Er wurde so implementiert, dass er unabhängig vom Basistemplate agiert und die spezifische Logik für das Hinzufügen oder Aktualisieren von Key-Value-Paaren kapselt.
 
@@ -330,8 +282,6 @@ always_comb begin
 
 Ausarbeitung Philipp Hecht
 
-**Beschreibung der State Machine für DELETE Sub-states:**
-
 Die DELETE FSM verwaltet den Löschprozess durch drei Zustände:
 
 1. **DEL_ST_START**: In diesem Zustand wird keine Operation ausgeführt; das Modul wartet auf die Aktivierung durch den Controller. Sobald das Modul aktiviert wird (dediziertes Steuersignal), springt die State Machine in den nächsten Zustand, um die Löschoperation einzuleiten. 
@@ -348,7 +298,6 @@ Die zuvor beschriebene `always_comb`-Logik des Memory Blockes ermöglicht es dir
 
 
 ## Obi interface 
-Philipp Hecht
 
 Als übergeordneten Block wurde für die Anbindung des Caches eine OBI (Open Bus Interface) Schnittstelle implementiert. Diese 
 ermöglicht es, den Cache über ein standardisiertes Protokoll zu steuern. Weiteres wird im Nachfolgendem Kapitel [OBI](./06_obi.md) beschrieben.

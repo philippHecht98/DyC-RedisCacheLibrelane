@@ -3,7 +3,7 @@
 Ausarbeitung Philipp Hecht
 
 ## Einleitung und Motivation
-Philipp Hecht
+Ausarbeitung Philipp Hecht
 
 Die ursprüngliche Idee war es, den Cache über *Custom-Commands* innerhalb einer RISC-V CPU anzusteuern. Hierrüber wäre es somit möglich gewesen, 
 die Cache Operationen direkt als Assembler Instruktionen zu implementieren. Auf Empfehlung des Lehrpersonals, wurde die Entscheidung getroffen, die 
@@ -17,7 +17,7 @@ die gleichen Signale wie zuvor, was die Komplexität der Implementierung reduzie
 Testen und Debugging des OBI Slaves. 
 
 ## OBI Protokoll
-Luca Schmid
+Ausarbeitung Luca Schmid
 
 ### Register
 
@@ -66,10 +66,10 @@ Nachfolgende Tablle beschreibt die für den Cache relevanten Felder des OBI Resp
 *für die Dokumenatiion nicht relevanten felder wurden hier ausgelassen
 
 ## Implementierung des OBI Slaves
-Philipp Hecht
+Ausarbeitung Philipp Hecht
 
 
-Zunächst versuchten wir, den OBI Slave eigenständig zu implementieren. Vorwegnehmend war diese Weg zur Implementierung nicht erfolgreich. Dennoch soll hier
+Zunächst versuchten wir, den OBI Slave eigenständig zu implementieren. Vorwegnehmend war dieser Weg zur Implementierung nicht erfolgreich. Dennoch soll hier
 der Weg zur erfolgreichen Implementierung beschrieben werden, um damit das generelle Konzept hinter unserer Implementierung zu verdeutlichen: 
 
 Die Risc-V CPU kommuniziert über Memory Mapping mit dem Cache. Hierfür werden die OBI Requests und Responses über die entsprechenden Signale gesendet.
@@ -158,7 +158,6 @@ direkt die nächste Anfrage an. Hierdurch reduziert sich die Komplexität des OB
 Reihenfolge zu stellen. Das Lesen von Daten während der Controller noch mit der Verarbeitung einer vorherigen Anfrage beschäftigt ist, führt zu fehlerhaften Daten.
 
 ### Aktuelle Implementierung
-Luca Pinnekamp
 
 Ausarbeitung Luca Pinnekamp
 

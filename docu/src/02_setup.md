@@ -1,9 +1,10 @@
+\newpage
 # Projekt Setup
-Gemeinsam
+Ausarbeitung gemeinsam
 
 ## Repo Struktur
 
-Zunächst befassten wir uns mit dem Aufbau einer generellen Code Struktur sowie dem Aufsetzen von [#Pipelines](Pipelines). Hierfür wurde zunächst 
+Zunächst befassten wir uns mit dem Aufbau einer generellen Code Struktur sowie dem Aufsetzen von [Pipelines](#backend). Hierfür wurde zunächst 
 ein *Fork* des vom Dozenten bereit gestelltem [GitHub Repostory](https://github.com/hm-aemy/librelane-template) aufgesetzt. 
 Der *Fork* wurde verwendet um eine generelle Vorgabe für die Code Struktur zu erlangen. Darauf aufbauend wurden folgende Verzeichnisse angelegt:
 
@@ -29,4 +30,4 @@ ausführen sämtlicher Tests für die Submodule als E2E Tests der gesamten Hardw
 Die Backend Pipeline wird beim mergen auf den *Main*-Branch aufgerufen und führt die in der Einleitung gezeigten Librelane Pipeline aus. 
 
 
-Näheres hierzu wird im Kapitel [Pipelines](./09_backendPipeline.md) beschrieben.
+Näheres hierzu wird im Kapitel [Pipelines](#backend) beschrieben.

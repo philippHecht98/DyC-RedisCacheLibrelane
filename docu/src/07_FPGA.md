@@ -1,5 +1,4 @@
 # FPGA
-Luca Pinnekamp
 
 Ausarbeitung Luca Pinnekamp
 

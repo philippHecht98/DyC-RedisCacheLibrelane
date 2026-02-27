@@ -1,9 +1,11 @@
 \newpage
 # Einleitung / Idee
-Gemeinsam
+Ausarbeitung gemeinsam
 
-TODO: [Link zur custom Hardware]() \
-TODO: [Link zu Risc-V Tapeout]()
+**[Link zu Custom Hardware](https://github.com/philippHecht98/DyC-RedisCacheLibrelane)**
+
+
+**[Link zu Risc-V (Croc) Tapeout](https://github.com/philippHecht98/RedisCacheTapeout)**
  
 Die ursprüngliche Idee dieses Projekts ist der Entwurf und die Implementierung eines kompakten Key-Value-Stores, inspiriert von Redis, auf RTL-Ebene (für FPGAs oder ASICs).
 
@@ -23,7 +25,7 @@ Grundlegendes Ziel war Speicheroperationen direkt in Hardware abzubilden, um ein
 *   **Automatische Ablaufzeit (TTL - Time-to-Live)**
 
 
-Die Motivation liegt darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt. 
+Die Motivation lag darin, die Effizienz von Key-Value-Speichern durch Hardwarebeschleunigung zu untersuchen und eine Schnittstelle bereitzustellen, die ähnlich wie Software-Caches funktioniert, aber die Vorteile dedizierter Hardware nutzt. 
 
 ![Speicherblöcke](./diagramme/02_architektur.drawio.svg)
  
