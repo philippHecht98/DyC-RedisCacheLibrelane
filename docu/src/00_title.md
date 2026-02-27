@@ -16,6 +16,7 @@ header-includes:
   - \floatplacement{figure}{H}
   - \pagenumbering{gobble}
 abstract: |
-  Dieses Dokument beinhaltet unsere Projektdokumenation zur Vorlesung Hardware- Software Co-Design. Das Dokument beschreibt die Implementation und Funktionalität des während des Blockseminars designten Redis-inspirierten Caches.
+  Dieses Dokument beinhaltet unsere Projektdokumenation zur Vorlesung Hardware/Software-Codesign. 
+  Das Dokument beschreibt die Implementation und Funktionalität des während des Blockseminars designten Redis-inspirierten Caches.
 toc-title: "Inhaltsverzeichnis"
 ---
