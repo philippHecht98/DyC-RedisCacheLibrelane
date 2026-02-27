@@ -1,0 +1,16 @@
+{
+  "number": 1,
+  "head": {
+    "ref": "test-branch",
+    "sha": "0000000000000000000000000000000000000001"
+  },
+  "base": {
+    "ref": "main"
+  },
+  "repository": {
+    "name": "DyC-RedisCacheLibrelane",
+    "owner": {
+      "login": "test-user"
+    }
+  }
+}

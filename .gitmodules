@@ -4,3 +4,6 @@
 [submodule "pdk"]
 	path = pdk
 	url = https://github.com/IHP-GmbH/IHP-Open-PDK.git
+[submodule "obi"]
+	path = obi
+	url = https://github.com/pulp-platform/obi.git

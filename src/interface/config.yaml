@@ -1,0 +1,21 @@
+DESIGN_NAME: cache_interface
+VERILOG_FILES:
+- ../redis_cache/src/cache_cfg_pkg.sv
+- ../controller/src/ctrl_types_pkg.sv
+- src/if_types_pkg.sv
+- ../../obi/common_cells/src/cf_math_pkg.sv
+- ../../obi/src/obi_pkg.sv
+- src/obi_interface.sv
+
+VERILOG_INCLUDE_DIRS:
+- ../../obi/common_cells/include
+- ../../obi/include
+
+
+USE_SLANG: true
+
+# 30% because the design is too small.
+FP_CORE_UTIL: 30
+
+FP_ASPECT_RATIO: 1.0
+PL_TARGET_DENSITY: 0.55

@@ -1,0 +1,15 @@
+DESIGN_NAME: memory_block
+VERILOG_FILES:
+- ../redis_cache/src/cache_cfg_pkg.sv
+- src/memory_block.sv
+- src/memory_cell.sv
+- src/memory_dynamic_registerarray.sv
+
+
+USE_SLANG: true
+
+# 30% because the design is too small.
+FP_CORE_UTIL: 30
+
+FP_ASPECT_RATIO: 1.0
+PL_TARGET_DENSITY: 0.55

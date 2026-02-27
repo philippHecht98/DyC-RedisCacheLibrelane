@@ -2,5 +2,5 @@
 	"name": "librelane-base-image",
     "image": "ghcr.io/hm-aemy/librelane-base-image:latest",
 
-    "postCreateCommand": "git submodule update --init --recursive"
+    "postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && git submodule update --init --recursive && apt-get update --fix-missing && apt-get install -y pandoc texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra librsvg2-bin make"
 }

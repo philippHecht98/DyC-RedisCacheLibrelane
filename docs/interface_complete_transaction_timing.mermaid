@@ -1,0 +1,83 @@
+sequenceDiagram
+    participant CPU
+    participant AXI_Write as AXI Write Logic
+    participant Regs as Registers
+    participant FSM as Transaction FSM
+    participant Ctrl as Controller
+
+    Note over CPU,Ctrl: CPU writes operation (e.g., SET with key=0x42, value=0xDEADBEEF)
+    
+    rect rgb(255, 240, 240)
+    Note over CPU,Regs: Clock Edge 1: Write Address Phase
+    CPU->>AXI_Write: awvalid=1, awaddr=0x00
+    AXI_Write-->>CPU: awready=1
+    Note over AXI_Write: Latch: aw_addr_latched = 0x00
+    end
+
+    rect rgb(240, 255, 240)
+    Note over CPU,Regs: Clock Edge 2: Write Data Ready
+    Note over AXI_Write: wready = 1 (address latched)
+    CPU->>AXI_Write: wvalid=1, wdata=0x02 (CREATE op)
+    Note over AXI_Write: Decode addr[4:2]=0 → op_reg
+    Note over AXI_Write: op_written = 1 (single cycle pulse)
+    AXI_Write->>Regs: op_reg = 0x02
+    AXI_Write-->>CPU: bvalid=1, bresp=00 (OKAY)
+    end
+
+    rect rgb(240, 240, 255)
+    Note over CPU,Regs: Clock Edge 3: FSM Triggered
+    Note over FSM: Detect op_written pulse
+    FSM->>FSM: IF_ST_IDLE → IF_ST_EXECUTE
+    CPU->>AXI_Write: bready=1 (ack write response)
+    Note over AXI_Write: Clear bvalid
+    end
+
+    rect rgb(255, 255, 240)
+    Note over CPU,Ctrl: Clock Edge 4: Start Pulse
+    FSM->>Ctrl: start_out = 1 (single cycle)
+    FSM->>FSM: IF_ST_EXECUTE → IF_ST_WAIT
+    Note over Ctrl: operation_out = CREATE (from op_reg)
+    Note over Ctrl: key_out = key_reg (combinational)
+    Note over Ctrl: value_out = {value_regs[1:0]} (combinational)
+    end
+
+    rect rgb(240, 255, 255)
+    Note over FSM,Ctrl: Clock Edge 5..N: Controller Processes
+    FSM->>FSM: start_out = 0
+    Note over FSM: Wait in IF_ST_WAIT state
+    Note over Ctrl: Controller executes operation...
+    Note over Ctrl: (could take multiple cycles)
+    end
+
+    rect rgb(255, 240, 255)
+    Note over FSM,Ctrl: Clock Edge N+1: Done Signal
+    Ctrl->>FSM: done_in=1, hit_in=1, result_value_in=0xCAFEBABE
+    Note over FSM: Latch results immediately:
+    FSM->>Regs: result_regs[0] = 0xBABE
+    FSM->>Regs: result_regs[1] = 0xCAFE
+    FSM->>Regs: status_hit = 1
+    FSM->>Regs: status_done = 1
+    FSM->>FSM: IF_ST_WAIT → IF_ST_COMPLETE
+    end
+
+    rect rgb(240, 255, 240)
+    Note over CPU,Regs: Clock Edge N+2: CPU Reads Status
+    CPU->>AXI_Write: arvalid=1, araddr=0x10 (status_reg)
+    Note over AXI_Write: Compose status_reg combinationally:
+    Note over AXI_Write: {fsm_state, error, hit, done}
+    AXI_Write-->>CPU: rvalid=1, rdata={IF_ST_COMPLETE,0,1,1}
+    CPU->>AXI_Write: rready=1
+    end
+
+    rect rgb(255, 255, 240)
+    Note over CPU,Regs: Clock Edge N+3: CPU Reads Result[0]
+    CPU->>AXI_Write: arvalid=1, araddr=0x14 (result_regs[0])
+    AXI_Write-->>CPU: rvalid=1, rdata=0xBABE
+    end
+
+    rect rgb(255, 240, 240)
+    Note over CPU,Regs: Clock Edge N+4: CPU Reads Result[1]
+    CPU->>AXI_Write: arvalid=1, araddr=0x18 (result_regs[1])
+    AXI_Write-->>CPU: rvalid=1, rdata=0xCAFE
+    Note over CPU: CPU now has full 64-bit result: 0xCAFEBABE
+    end
