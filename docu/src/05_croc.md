@@ -1,6 +1,8 @@
 # CROC
 Luca Pinnekamp
 
+Ausarbeitung Luca Pinnekamp
+
 Das CROC (Custom RISC-V Open-source Core) System-on-Chip (SoC) dient als Zielplattform für die Integration unseres Hardware-Redis-Caches. Wir haben uns für diese Plattform entschieden, da sie die notwendige Infrastruktur bietet, um unsere Erweiterung in einem realistischen System zu evaluieren.
 
 ## CROC Architektur

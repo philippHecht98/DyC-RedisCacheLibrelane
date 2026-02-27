@@ -29,7 +29,4 @@ ausführen sämtlicher Tests für die Submodule als E2E Tests der gesamten Hardw
 Die Backend Pipeline wird beim mergen auf den *Main*-Branch aufgerufen und führt die in der Einleitung gezeigten Librelane Pipeline aus. 
 
 
-TODO: weiteres Repository für tapeout darstellen;
-TODO: Detailierter auf Pipeline eingehen (act zum lokalen testen anmerken?)
-
-TODO: ausblick, dass backendpipeline nie ausgeführt wurde, da keine Zeit, zu komplex und eigentlich falsches Repo?
+Näheres hierzu wird im Kapitel [Pipelines](./09_backendPipeline.md) beschrieben.
