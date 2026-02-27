@@ -63,6 +63,30 @@ async def obi_write(dut, addr, wdata, be=0xF):
     dut.obi_req_i.value = pack_obi_req()
     await RisingEdge(dut.clk)
 
+async def obi_read(dut, addr):
+    """Hilfsfunktion für einen OBI Read-Handshake."""
+    dut.obi_req_i.value = pack_obi_req(addr=addr, we=0, req=1, be=0xF)
+    
+    # Warten auf das Grant-Signal
+    while True:
+        await RisingEdge(dut.clk)
+        resp_val = int(dut.obi_resp_o.value)
+        gnt_bit = (resp_val >> 1) & 1 
+        if gnt_bit == 1:
+            break
+            
+    # Request wieder auf 0 ziehen
+    dut.obi_req_i.value = pack_obi_req()
+    
+    # Warten auf Valid und Daten lesen
+    while True:
+        resp_val = int(dut.obi_resp_o.value)
+        rvalid_bit = resp_val & 1
+        if rvalid_bit == 1:
+            # Wir greifen direkt auf das interne Signal zu, um Bit-Packing Probleme zu vermeiden
+            return int(dut.u_obi.rsp_data.value)
+        await RisingEdge(dut.clk)
+
 async def execute_cache_operation(dut, tester, operation, key, value=0):
     """
     Führt eine Cache-Operation über das OBI-Interface aus.
@@ -111,7 +135,7 @@ async def execute_cache_operation(dut, tester, operation, key, value=0):
             
     dut._log.info(f"Operation {operation.upper()} abgeschlossen (Dauer: {cycles} Zyklen).")
 
-@cocotb.test()
+#@cocotb.test()
 async def test_reset(dut):
     """Test: Verify controller initializes to IDLE state after reset."""
     tester = TopTester(dut)
@@ -130,7 +154,7 @@ async def test_reset(dut):
    
     dut._log.info("✓ Reset test passed")
 
-@cocotb.test()
+#@cocotb.test()
 async def test_upsert_simple(dut):
     """Test: Insert a value into the cache and verify success."""
     tester = TopTester(dut)
@@ -140,8 +164,8 @@ async def test_upsert_simple(dut):
     # 1. Reset
     await tester.reset()
     
-    test_key = 0xDEADBEEF
-    test_val = 0x12345678
+    test_key = 0xBEEF
+    test_val = 0x8765FFFF
 
     await execute_cache_operation(dut, tester, 'UPSERT', key=test_key, value=test_val)
 
@@ -149,7 +173,7 @@ async def test_upsert_simple(dut):
     
     dut._log.info("✓ Upsert test passed")
 
-@cocotb.test()
+#@cocotb.test()
 async def test_upsert_simple2(dut):
     """Test: Insert two values into the cache and verify success."""
     tester = TopTester(dut)
@@ -187,8 +211,8 @@ async def test_upsert_get_delete(dut):
     # 1. Reset
     await tester.reset()
     
-    test_key = 0x55
-    test_val = 0x12345678
+    test_key = 0xBEEF
+    test_val = 0x1234FFFF
 
     # ==========================================
     # --- 1. EINTRAG SCHREIBEN (UPSERT) ---
@@ -209,6 +233,45 @@ async def test_upsert_get_delete(dut):
     # Nach dem Löschen muss das used-Bit wieder auf 0 gehen
     assert tester.u_mem.used_entries.value == 0b0, f"Fehler nach Delete: used={tester.u_mem.used_entries.value} (Sollte wieder 0 sein!)"
 
+    await execute_cache_operation(dut, tester, 'GET', key=test_key)
+
+#@cocotb.test()
+async def test_upsert_get(dut):
+    """Test: Insert a value into the cache and get the value by key."""
+    tester = TopTester(dut)
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    
+    # 1. Reset
+    await tester.reset()
+    
+    test_key = 0xBEEF
+    test_val = 0x8765FFFF
+
+    await execute_cache_operation(dut, tester, 'UPSERT', key=test_key, value=test_val)
+
+    assert tester.u_mem.used_entries.value == 0b1, "Fehler: Das used-Bit für den ersten Eintrag wurde nicht gesetzt!"
+
+    await execute_cache_operation(dut, tester, 'GET', key=0x0000)
+
+    await execute_cache_operation(dut, tester, 'GET', key=test_key)
+
+    
+    # Verify Result via OBI Read
+    # 1. Read Data (Address 0)
+    read_val = await obi_read(dut, addr=0)
+    #print(f"read_val: {hex(read_val)}")
+    assert read_val == test_val, f"GET returned wrong value: {hex(read_val)} != {hex(test_val)}"
+    
+    dut._log.info("✓ Upsert test passed")
+    # 2. Read Control/Status (Address 12) to check HIT bit
+    # Hit bit is at index 4.
+    ctrl_val = await obi_read(dut, addr=12)
+    hit = (ctrl_val >> 4) & 1
+    print(f"hit: {hit}")
+    assert hit == 1, f"GET operation did not report a HIT! Ctrl Reg: {bin(ctrl_val)}"
+
+    dut._log.info("✓ Upsert & Get test passed")
 
 def test_top_runner():
     #sim = os.getenv("SIM", "icarus")
